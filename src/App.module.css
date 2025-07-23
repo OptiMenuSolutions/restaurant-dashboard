@@ -1,0 +1,17 @@
+.app {
+  display: flex;
+  height: 100vh;
+  font-family: sans-serif;
+}
+
+.main {
+  flex-grow: 1;
+  padding: 2rem;
+  background-color: #f9f9f9;
+}
+
+.appContainer {
+  display: flex;
+  height: 100vh;       /* Ensures full vertical height */
+  font-family: sans-serif;
+}
