@@ -1,5 +1,5 @@
 // File: src/pages/Dashboard.js
-import React from "react";
+import React, { useRef } from "react";
 import styles from "./Dashboard.module.css";
 import {
   LineChart,
@@ -22,9 +22,35 @@ const sampleData = [
 ];
 
 export default function Dashboard() {
+  const fileInputRef = useRef();
+
+  const handleUploadClick = () => {
+    fileInputRef.current.click();
+  };
+
+  const handleFileChange = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      console.log("Selected file:", file.name);
+      // Upload logic will go here later
+    }
+  };
+
   return (
     <div className={styles.dashboard}>
-      <h1 className={styles.heading}>Dashboard Overview</h1>
+      <div className={styles.headerRow}>
+        <h1 className={styles.heading}>Dashboard Overview</h1>
+        <button className={styles.uploadButton} onClick={handleUploadClick}>
+          Upload Invoice
+        </button>
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileChange}
+          style={{ display: "none" }}
+          accept=".pdf,.jpg,.jpeg,.png"
+        />
+      </div>
 
       <div className={styles.summaryBoxes}>
         <div className={styles.summaryBox}>

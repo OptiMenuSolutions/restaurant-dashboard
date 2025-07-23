@@ -1,32 +1,82 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import Sidebar from "./components/Sidebar";
+import React from "react";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import Dashboard from "./pages/Dashboard";
 import Invoices from "./pages/Invoices";
-import InvoiceDetail from "./pages/InvoiceDetail";
 import Ingredients from "./pages/Ingredients";
-import IngredientDetail from "./pages/IngredientDetail";
 import MenuItems from "./pages/MenuItems";
-import MenuItemDetail from "./pages/MenuItemDetail";
-import styles from "./App.module.css";
+import IngredientDetail from "./pages/IngredientDetail";
+import InvoiceDetail from "./pages/InvoiceDetail";
+import Signup from "./pages/Signup";
+import Login from "./pages/Login";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
+
+function ProtectedRoute({ children }) {
+  const { user, loading } = useAuth();
+
+  if (loading) return <div>Loading...</div>; // Optional loading state
+
+  return user ? children : <Navigate to="/login" />;
+}
 
 function App() {
   return (
-    <div className={styles.app}>
-      <Router>
-        <Sidebar />
-        <main className={styles.main}>
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/invoices" element={<Invoices />} />
-            <Route path="/invoices/:invoiceId" element={<InvoiceDetail />} />
-            <Route path="/ingredients" element={<Ingredients />} />
-            <Route path="/ingredients/:ingredientId" element={<IngredientDetail />} />
-            <Route path="/menu-items" element={<MenuItems />} />
-            <Route path="/menu-items/:menuItemId" element={<MenuItemDetail />} />
-          </Routes>
-        </main>
-      </Router>
-    </div>
+    <Router>
+      <AuthProvider>
+        <Routes>
+          <Route path="/signup" element={<Signup />} />
+          <Route path="/login" element={<Login />} />
+
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/invoices"
+            element={
+              <ProtectedRoute>
+                <Invoices />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/ingredients"
+            element={
+              <ProtectedRoute>
+                <Ingredients />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/menu-items"
+            element={
+              <ProtectedRoute>
+                <MenuItems />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/ingredients/:id"
+            element={
+              <ProtectedRoute>
+                <IngredientDetail />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/invoices/:id"
+            element={
+              <ProtectedRoute>
+                <InvoiceDetail />
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
+      </AuthProvider>
+    </Router>
   );
 }
 
