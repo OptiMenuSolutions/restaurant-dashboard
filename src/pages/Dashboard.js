@@ -1,5 +1,6 @@
 // File: src/pages/Dashboard.js
 import React, { useRef } from "react";
+import Layout from "../components/Layout";
 import styles from "./Dashboard.module.css";
 import {
   LineChart,
@@ -37,48 +38,55 @@ export default function Dashboard() {
   };
 
   return (
-    <div className={styles.dashboard}>
-      <div className={styles.headerRow}>
-        <h1 className={styles.heading}>Dashboard Overview</h1>
-        <button className={styles.uploadButton} onClick={handleUploadClick}>
-          Upload Invoice
-        </button>
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileChange}
-          style={{ display: "none" }}
-          accept=".pdf,.jpg,.jpeg,.png"
-        />
-      </div>
+    <Layout>
+      <div className={styles.dashboard}>
+        <div className={styles.headerRow}>
+          <h1 className={styles.heading}>Dashboard Overview</h1>
+          <button className={styles.uploadButton} onClick={handleUploadClick}>
+            Upload Invoice
+          </button>
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            style={{ display: "none" }}
+            accept=".pdf,.jpg,.jpeg,.png"
+          />
+        </div>
 
-      <div className={styles.summaryBoxes}>
-        <div className={styles.summaryBox}>
-          <h3>Total Ingredient Spend</h3>
-          <p>$3,750</p>
+        <div className={styles.summaryBoxes}>
+          <div className={styles.summaryBox}>
+            <h3>Total Ingredient Spend</h3>
+            <p>$3,750</p>
+          </div>
+          <div className={styles.summaryBox}>
+            <h3>Avg Daily Cost</h3>
+            <p>$535</p>
+          </div>
+          <div className={styles.summaryBox}>
+            <h3>Invoices This Week</h3>
+            <p>7</p>
+          </div>
         </div>
-        <div className={styles.summaryBox}>
-          <h3>Avg Daily Cost</h3>
-          <p>$535</p>
-        </div>
-        <div className={styles.summaryBox}>
-          <h3>Invoices This Week</h3>
-          <p>7</p>
-        </div>
-      </div>
 
-      <div className={styles.chartContainer}>
-        <h2>Cost Trend</h2>
-        <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={sampleData}>
-            <CartesianGrid stroke="#ccc" strokeDasharray="5 5" />
-            <XAxis dataKey="date" />
-            <YAxis />
-            <Tooltip />
-            <Line type="monotone" dataKey="cost" stroke="#8884d8" strokeWidth={2} />
-          </LineChart>
-        </ResponsiveContainer>
+        <div className={styles.chartContainer}>
+          <h2 className={styles.chartTitle}>Cost Trend</h2>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={sampleData}>
+              <CartesianGrid stroke="#ccc" strokeDasharray="5 5" />
+              <XAxis dataKey="date" />
+              <YAxis />
+              <Tooltip />
+              <Line
+                type="monotone"
+                dataKey="cost"
+                stroke="#8884d8"
+                strokeWidth={2}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
       </div>
-    </div>
+    </Layout>
   );
 }

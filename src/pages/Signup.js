@@ -31,9 +31,14 @@ export default function Signup() {
       return;
     }
 
-    const user = data.user;
+    const user = data?.user;
+    if (!user) {
+      setError('Signup succeeded, but no user returned.');
+      console.error('Signup response:', data);
+      return;
+    }
 
-    await supabase.from('profiles').insert([
+    const { error: insertError } = await supabase.from('profiles').insert([
       {
         id: user.id,
         email: formData.email,
@@ -41,6 +46,12 @@ export default function Signup() {
         restaurant_name: formData.restaurantName,
       },
     ]);
+
+    if (insertError) {
+      setError('Failed to save profile info: ' + insertError.message);
+      console.error('Insert profile error:', insertError);
+      return;
+    }
 
     navigate('/login');
   }
