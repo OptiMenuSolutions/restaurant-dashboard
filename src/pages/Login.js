@@ -1,76 +1,62 @@
-import React, { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
-import { useAuth } from "../contexts/AuthContext";
+import React, { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import supabase from '../supabaseClient';
+import styles from './Login.module.css';
 
 export default function Login() {
-  const { signIn } = useAuth();
+  const [formData, setFormData] = useState({ email: '', password: '' });
+  const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-  });
-  const [error, setError] = useState("");
+  function handleChange(e) {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  }
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
-
-  const handleSubmit = async (e) => {
+  async function handleSubmit(e) {
     e.preventDefault();
-    setError("");
+    setError('');
 
-    const { email, password } = formData;
+    const { error } = await supabase.auth.signInWithPassword({
+      email: formData.email,
+      password: formData.password,
+    });
 
-    const { error } = await signIn(email, password);
     if (error) {
       setError(error.message);
     } else {
-      navigate("/");
+      navigate('/');
     }
-  };
+  }
 
   return (
-    <div style={{ padding: "2rem", maxWidth: "400px", margin: "0 auto" }}>
-      <h2>Login</h2>
-      {error && <p style={{ color: "red" }}>{error}</p>}
-      <form onSubmit={handleSubmit}>
-        <div style={{ marginBottom: "1rem" }}>
-          <label>Email</label>
+    <div className={styles.wrapper}>
+      <div className={styles.container}>
+        <h2 className={styles.title}>Login</h2>
+        <form onSubmit={handleSubmit} className={styles.form}>
           <input
-            type="email"
             name="email"
+            type="email"
+            placeholder="Email"
             value={formData.email}
             onChange={handleChange}
             required
-            style={{ width: "100%", padding: "0.5rem" }}
           />
-        </div>
-        <div style={{ marginBottom: "1rem" }}>
-          <label>Password</label>
           <input
-            type="password"
             name="password"
+            type="password"
+            placeholder="Password"
             value={formData.password}
             onChange={handleChange}
             required
-            style={{ width: "100%", padding: "0.5rem" }}
           />
-        </div>
-        <button type="submit" style={{ padding: "0.5rem 1rem" }}>
-          Log In
-        </button>
-      </form>
-      <p style={{ marginTop: "1rem" }}>
-        Don’t have an account?{" "}
-        <Link to="/signup" style={{ color: "blue", textDecoration: "underline" }}>
-          Sign up here
-        </Link>
-      </p>
+          <div className={styles.forgot}>Forgot Password?</div>
+          <button type="submit" className={styles.button}>Login</button>
+        </form>
+        {error && <p className={styles.error}>{error}</p>}
+        <p className={styles.signup}>
+          Not a Member? <Link to="/signup">Signup</Link>
+        </p>
+      </div>
     </div>
   );
 }

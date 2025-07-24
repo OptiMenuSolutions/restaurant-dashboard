@@ -1,21 +1,22 @@
-import React from "react";
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
-import Dashboard from "./pages/Dashboard";
-import Invoices from "./pages/Invoices";
-import Ingredients from "./pages/Ingredients";
-import MenuItems from "./pages/MenuItems";
-import IngredientDetail from "./pages/IngredientDetail";
-import InvoiceDetail from "./pages/InvoiceDetail";
-import Signup from "./pages/Signup";
-import Login from "./pages/Login";
-import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import Dashboard from './pages/Dashboard';
+import Invoices from './pages/Invoices';
+import Ingredients from './pages/Ingredients';
+import MenuItems from './pages/MenuItems';
+import IngredientDetail from './pages/IngredientDetail';
+import InvoiceDetail from './pages/InvoiceDetail';
+import Signup from './pages/Signup';
+import Login from './pages/Login';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 function ProtectedRoute({ children }) {
-  const { user, loading } = useAuth();
-
-  if (loading) return <div>Loading...</div>; // Optional loading state
-
-  return user ? children : <Navigate to="/login" />;
+  const { user } = useAuth();
+  if (!user) {
+    window.location.href = '/login';
+    return null;
+  }
+  return children;
 }
 
 function App() {
