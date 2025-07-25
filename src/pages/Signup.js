@@ -1,7 +1,9 @@
+// File: src/pages/Signup.js
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import supabase from '../supabaseClient';
 import styles from './Signup.module.css';
+import { v4 as uuidv4 } from 'uuid'; // Ensure uuid is installed
 
 export default function Signup() {
   const [formData, setFormData] = useState({
@@ -10,6 +12,7 @@ export default function Signup() {
     fullName: '',
     restaurantName: '',
   });
+  const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
@@ -20,10 +23,20 @@ export default function Signup() {
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
+    setMessage('');
+
+    const restaurantId = uuidv4();
 
     const { data, error: signUpError } = await supabase.auth.signUp({
       email: formData.email,
       password: formData.password,
+      options: {
+        data: {
+          full_name: formData.fullName,
+          restaurant_name: formData.restaurantName,
+          restaurant_id: restaurantId,
+        },
+      },
     });
 
     if (signUpError) {
@@ -31,19 +44,20 @@ export default function Signup() {
       return;
     }
 
-    const user = data?.user;
-    if (!user) {
-      setError('Signup succeeded, but no user returned.');
-      console.error('Signup response:', data);
+    // If email confirmation is required, no user is returned — stop here
+    if (!data.user) {
+      setMessage('Signup successful! Please check your email to confirm your account before logging in.');
       return;
     }
 
+    // Insert profile now that user exists
     const { error: insertError } = await supabase.from('profiles').insert([
       {
-        id: user.id,
+        id: data.user.id,
         email: formData.email,
         full_name: formData.fullName,
         restaurant_name: formData.restaurantName,
+        restaurant_id: restaurantId,
       },
     ]);
 
@@ -96,6 +110,7 @@ export default function Signup() {
           <button type="submit" className={styles.button}>Sign Up</button>
         </form>
         {error && <p className={styles.error}>{error}</p>}
+        {message && <p className={styles.message}>{message}</p>}
         <p className={styles.login}>
           Already have an account? <Link to="/login">Login</Link>
         </p>

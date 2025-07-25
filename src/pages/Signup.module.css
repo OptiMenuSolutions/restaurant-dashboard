@@ -65,3 +65,14 @@ input:focus {
   margin-top: 1rem;
   font-size: 0.9rem;
 }
+
+/* Add these to Signup.module.css */
+.success {
+  color: #1e7e34;
+  background-color: #d4edda;
+  padding: 10px 12px;
+  border-radius: 4px;
+  margin-top: 12px;
+  font-size: 0.95rem;
+  border: 1px solid #c3e6cb;
+}

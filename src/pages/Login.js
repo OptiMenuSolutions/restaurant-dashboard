@@ -1,3 +1,4 @@
+// File: src/pages/Login.js
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import supabase from '../supabaseClient';
@@ -16,16 +17,47 @@ export default function Login() {
     e.preventDefault();
     setError('');
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error: signInError } = await supabase.auth.signInWithPassword({
       email: formData.email,
       password: formData.password,
     });
 
-    if (error) {
-      setError(error.message);
-    } else {
-      navigate('/');
+    if (signInError) {
+      setError(signInError.message);
+      return;
     }
+
+    const user = data?.user;
+    if (!user) {
+      setError('Login succeeded, but no user returned.');
+      return;
+    }
+
+    // Check if profile exists
+    const { data: existingProfile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError && profileError?.code === 'PGRST116') {
+      // No profile exists, create one from metadata
+      const { error: insertError } = await supabase.from('profiles').insert([
+        {
+          id: user.id,
+          email: user.email,
+          full_name: user.user_metadata?.full_name || '',
+          restaurant_name: user.user_metadata?.restaurant_name || '',
+          restaurant_id: user.user_metadata?.restaurant_id || null,
+        },
+      ]);
+
+      if (insertError) {
+        console.error('Failed to create profile after login:', insertError.message);
+      }
+    }
+
+    navigate('/');
   }
 
   return (
