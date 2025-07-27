@@ -1,7 +1,8 @@
 // File: src/pages/InvoiceEditor.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import supabase from '../supabaseClient';
+import styles from './InvoiceEditor.module.css';
 
 export default function InvoiceEditor() {
   const { id } = useParams();
@@ -24,13 +25,7 @@ export default function InvoiceEditor() {
   const [ingredients, setIngredients] = useState([]);
   const [filteredIngredients, setFilteredIngredients] = useState([]);
   
-  useEffect(() => {
-    if (id) {
-      fetchInvoiceData();
-    }
-  }, [id]);
-
-  async function fetchInvoiceData() {
+  const fetchInvoiceData = useCallback(async () => {
     try {
       // Get invoice data
       const { data: invoiceData, error: invoiceError } = await supabase
@@ -85,7 +80,14 @@ export default function InvoiceEditor() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [id]);
+  
+  useEffect(() => {
+    if (id) {
+      fetchInvoiceData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   function handleInvoiceDetailsChange(e) {
     const { name, value } = e.target;
@@ -174,34 +176,82 @@ export default function InvoiceEditor() {
         })
         .eq('id', id);
 
-      if (invoiceUpdateError) throw invoiceUpdateError;
+      if (invoiceUpdateError) {
+        alert('Failed to update invoice: ' + invoiceUpdateError.message);
+        return;
+      }
 
-      // Delete existing invoice items and insert new ones
+      // Create missing ingredients before processing items
+      for (const item of invoiceItems) {
+        if (item.item_name && item.unit && !item.ingredient_id) {
+          // Check if ingredient already exists for this restaurant
+          const { data: existingIngredient, error: checkError } = await supabase
+            .from('ingredients')
+            .select('id')
+            .eq('restaurant_id', restaurant.id)
+            .eq('name', item.item_name)
+            .eq('unit', item.unit)
+            .single();
+
+          if (checkError && checkError.code === 'PGRST116') {
+            // Ingredient doesn't exist, create it
+            const { data: newIngredient, error: createError } = await supabase
+              .from('ingredients')
+              .insert({
+                restaurant_id: restaurant.id,
+                name: item.item_name,
+                unit: item.unit,
+                last_price: item.unit_cost || 0,
+                last_ordered_at: invoiceDetails.date
+              })
+              .select()
+              .single();
+
+            if (createError) {
+              alert('Failed to create ingredient: ' + createError.message);
+              return;
+            }
+
+            item.ingredient_id = newIngredient.id;
+          } else if (!checkError) {
+            item.ingredient_id = existingIngredient.id;
+          }
+        }
+      }
+
+      // Delete existing invoice items
       const { error: deleteError } = await supabase
         .from('invoice_items')
         .delete()
         .eq('invoice_id', id);
 
-      if (deleteError) throw deleteError;
+      if (deleteError) {
+        alert('Failed to delete old items: ' + deleteError.message);
+        return;
+      }
 
-      // Insert new invoice items
+      // Prepare items for insertion
       const itemsToInsert = invoiceItems.map(item => ({
         invoice_id: id,
-        item_name: item.item_name,
-        quantity: parseFloat(item.quantity),
-        unit: item.unit,
-        amount: parseFloat(item.amount),
-        unit_cost: parseFloat(item.unit_cost),
-        ingredient_id: item.ingredient_id
+        item_name: item.item_name || '',
+        quantity: parseFloat(item.quantity) || 0,
+        unit: item.unit || '',
+        amount: parseFloat(item.amount) || 0,
+        unit_cost: parseFloat(item.unit_cost) || 0,
+        ingredient_id: item.ingredient_id || null
       }));
 
+      // Insert new invoice items
       const { error: insertError } = await supabase
         .from('invoice_items')
         .insert(itemsToInsert);
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        alert('Failed to insert items: ' + insertError.message);
+        return;
+      }
 
-      // Update ingredient prices
+      // Update existing ingredient prices (THIS IS WHERE COST HISTORY IS LOGGED!)
       for (const item of invoiceItems) {
         if (item.ingredient_id && item.unit_cost > 0) {
           await supabase
@@ -218,272 +268,292 @@ export default function InvoiceEditor() {
       navigate('/admin/pending-invoices');
 
     } catch (error) {
-      console.error('Error saving invoice:', error);
-      alert('Failed to save invoice');
+      console.error('Unexpected error during save:', error);
+      alert('Unexpected error: ' + error.message);
     } finally {
       setSaving(false);
     }
   }
 
   if (loading) {
-    return <div style={{ padding: '2rem' }}>Loading invoice...</div>;
+    return (
+      <div className={styles.wrapper}>
+        <div className={styles.loadingContainer}>
+          <div className={styles.spinner}></div>
+          <div className={styles.loadingText}>Loading invoice...</div>
+        </div>
+      </div>
+    );
   }
 
   if (!invoice) {
-    return <div style={{ padding: '2rem' }}>Invoice not found</div>;
+    return (
+      <div className={styles.wrapper}>
+        <div className={styles.errorContainer}>
+          <div className={styles.errorIcon}>⚠️</div>
+          <div className={styles.errorText}>Invoice not found</div>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div style={{ padding: '2rem', backgroundColor: '#f8fafc', minHeight: '100vh' }}>
+    <div className={styles.wrapper}>
       {/* Header */}
-      <div style={{ backgroundColor: 'white', padding: '1rem', borderRadius: '8px', marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <button 
-          onClick={() => navigate('/admin/pending-invoices')}
-          style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', fontWeight: '500' }}
-        >
-          ← Back to Pending Invoices
-        </button>
-        <h1 style={{ margin: 0, fontSize: '1.5rem', color: '#1e293b' }}>
-          Invoice Editor - {restaurant?.name}
-        </h1>
-        <button 
-          onClick={handleSubmit}
-          disabled={saving}
-          style={{ 
-            background: '#10b981', 
-            color: 'white', 
-            border: 'none', 
-            padding: '0.75rem 1.5rem', 
-            borderRadius: '8px', 
-            cursor: saving ? 'not-allowed' : 'pointer',
-            opacity: saving ? 0.5 : 1
-          }}
-        >
-          {saving ? 'Saving...' : 'Save Invoice'}
-        </button>
-      </div>
+      <header className={styles.header}>
+        <div className={styles.headerContent}>
+          <button 
+            className={styles.backButton}
+            onClick={() => navigate('/admin/pending-invoices')}
+          >
+            <svg className={styles.backIcon} viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
+            </svg>
+            Back to Pending Invoices
+          </button>
+          <h1 className={styles.title}>
+            Invoice Editor - {restaurant?.name}
+          </h1>
+          <button 
+            className={styles.saveButton}
+            onClick={handleSubmit}
+            disabled={saving}
+          >
+            {saving ? (
+              <>
+                <div className={styles.spinner}></div>
+                Saving...
+              </>
+            ) : (
+              <>
+                <svg className={styles.buttonIcon} viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+                Save Invoice
+              </>
+            )}
+          </button>
+        </div>
+      </header>
       
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
-        {/* Left Panel */}
-        <div style={{ backgroundColor: 'white', padding: '1.5rem', borderRadius: '8px' }}>
-          <h2 style={{ marginBottom: '1rem' }}>Invoice Details</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '2rem' }}>
-            <div>
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>Invoice Number</label>
-              <input
-                name="number"
-                type="text"
-                placeholder="Invoice Number"
-                value={invoiceDetails.number}
-                onChange={handleInvoiceDetailsChange}
-                style={{ width: '100%', padding: '0.75rem', border: '1px solid #d1d5db', borderRadius: '6px' }}
-              />
-            </div>
-            <div>
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>Invoice Date</label>
-              <input
-                name="date"
-                type="date"
-                value={invoiceDetails.date}
-                onChange={handleInvoiceDetailsChange}
-                style={{ width: '100%', padding: '0.75rem', border: '1px solid #d1d5db', borderRadius: '6px' }}
-              />
-            </div>
-            <div>
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>Supplier</label>
-              <input
-                name="supplier"
-                type="text"
-                placeholder="Supplier"
-                value={invoiceDetails.supplier}
-                onChange={handleInvoiceDetailsChange}
-                style={{ width: '100%', padding: '0.75rem', border: '1px solid #d1d5db', borderRadius: '6px' }}
-              />
-            </div>
-            <div>
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>Total Amount</label>
-              <input
-                name="amount"
-                type="number"
-                step="0.01"
-                placeholder="Total Amount"
-                value={invoiceDetails.amount}
-                onChange={handleInvoiceDetailsChange}
-                style={{ width: '100%', padding: '0.75rem', border: '1px solid #d1d5db', borderRadius: '6px' }}
-              />
-            </div>
-          </div>
-          
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <h2>Invoice Items</h2>
-            <button 
-              onClick={addInvoiceItem} 
-              style={{ background: '#3b82f6', color: 'white', border: 'none', padding: '0.5rem 1rem', borderRadius: '6px', cursor: 'pointer' }}
-            >
-              + Add Item
-            </button>
-          </div>
-          
-          {invoiceItems.map((item, index) => (
-            <div key={item.id || index} style={{ border: '1px solid #e5e7eb', padding: '1rem', marginBottom: '1rem', borderRadius: '6px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem' }}>Item Name</label>
-                  <input
-                    type="text"
-                    value={item.item_name}
-                    onChange={(e) => handleItemChange(index, 'item_name', e.target.value)}
-                    placeholder="Item name"
-                    style={{ width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '4px' }}
-                  />
-                </div>
-                
-                <div>
-                  <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem' }}>Quantity</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={item.quantity}
-                    onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
-                    placeholder="0"
-                    style={{ width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '4px' }}
-                  />
-                </div>
-                
-                <div>
-                  <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem' }}>Unit</label>
-                  <input
-                    type="text"
-                    value={item.unit}
-                    onChange={(e) => handleItemChange(index, 'unit', e.target.value)}
-                    placeholder="lbs, oz, etc"
-                    style={{ width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '4px' }}
-                  />
-                </div>
-                
-                <div>
-                  <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem' }}>Amount</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={item.amount}
-                    onChange={(e) => handleItemChange(index, 'amount', e.target.value)}
-                    placeholder="0.00"
-                    style={{ width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '4px' }}
-                  />
-                </div>
-              </div>
-              
-              <div style={{ marginBottom: '1rem' }}>
-                <strong>Unit Cost: ${item.unit_cost.toFixed(2)}</strong>
-              </div>
-              
-              <div style={{ position: 'relative', marginBottom: '1rem' }}>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem' }}>Search Ingredients</label>
+      {/* Main Content */}
+      <main className={styles.main}>
+        {/* Left Panel - Invoice Data */}
+        <div className={styles.leftPanel}>
+          {/* Invoice Details Section */}
+          <div className={styles.section}>
+            <h2 className={styles.sectionTitle}>Invoice Details</h2>
+            <div className={styles.formGrid}>
+              <div className={styles.formGroup}>
+                <label className={styles.label}>Invoice Number</label>
                 <input
+                  name="number"
                   type="text"
-                  value={item.ingredient_search || ''}
-                  onChange={(e) => handleIngredientSearch(index, e.target.value)}
-                  placeholder="Search ingredients..."
-                  style={{ width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '4px' }}
+                  placeholder="e.g., INV-2025-001"
+                  value={invoiceDetails.number}
+                  onChange={handleInvoiceDetailsChange}
+                  className={styles.input}
                 />
-                
-                {filteredIngredients.length > 0 && (
-                  <div style={{ 
-                    position: 'absolute', 
-                    top: '100%', 
-                    left: 0, 
-                    right: 0, 
-                    border: '1px solid #d1d5db', 
-                    backgroundColor: 'white', 
-                    maxHeight: '150px', 
-                    overflowY: 'auto', 
-                    zIndex: 10, 
-                    borderRadius: '0 0 4px 4px',
-                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-                  }}>
-                    {filteredIngredients.map(ingredient => (
-                      <div
-                        key={ingredient.id}
-                        style={{ 
-                          padding: '0.5rem', 
-                          cursor: 'pointer', 
-                          borderBottom: '1px solid #f3f4f6',
-                          fontSize: '0.875rem'
-                        }}
-                        onClick={() => selectIngredient(index, ingredient)}
-                        onMouseOver={(e) => e.target.style.backgroundColor = '#f3f4f6'}
-                        onMouseOut={(e) => e.target.style.backgroundColor = 'white'}
-                      >
-                        {ingredient.name} ({ingredient.unit})
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
-              
+              <div className={styles.formGroup}>
+                <label className={styles.label}>Invoice Date</label>
+                <input
+                  name="date"
+                  type="date"
+                  value={invoiceDetails.date}
+                  onChange={handleInvoiceDetailsChange}
+                  className={styles.input}
+                />
+              </div>
+              <div className={styles.formGroup}>
+                <label className={styles.label}>Supplier</label>
+                <input
+                  name="supplier"
+                  type="text"
+                  placeholder="e.g., Fresh Foods Direct"
+                  value={invoiceDetails.supplier}
+                  onChange={handleInvoiceDetailsChange}
+                  className={styles.input}
+                />
+              </div>
+              <div className={styles.formGroup}>
+                <label className={styles.label}>Total Amount</label>
+                <input
+                  name="amount"
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={invoiceDetails.amount}
+                  onChange={handleInvoiceDetailsChange}
+                  className={styles.input}
+                />
+              </div>
+            </div>
+          </div>
+          
+          {/* Invoice Items Section */}
+          <div className={styles.section}>
+            <div className={styles.sectionHeader}>
+              <h2 className={styles.sectionTitle}>Invoice Items</h2>
               <button 
-                onClick={() => removeInvoiceItem(index)}
-                style={{ 
-                  background: '#ef4444', 
-                  color: 'white', 
-                  border: 'none', 
-                  padding: '0.5rem 1rem', 
-                  borderRadius: '4px', 
-                  cursor: 'pointer',
-                  fontSize: '0.875rem'
-                }}
+                className={styles.addButton}
+                onClick={addInvoiceItem}
               >
-                Remove Item
+                + Add Item
               </button>
             </div>
-          ))}
+            
+            {invoiceItems.length === 0 ? (
+              <div className={styles.emptyItems}>
+                <p className={styles.emptyText}>No items added yet</p>
+                <p className={styles.emptySubtext}>Click "Add Item" to start adding invoice items</p>
+              </div>
+            ) : (
+              <div className={styles.itemsTable}>
+                <div className={styles.tableHeader}>
+                  <div className={styles.headerCell}>Item Name</div>
+                  <div className={styles.headerCell}>Quantity</div>
+                  <div className={styles.headerCell}>Unit</div>
+                  <div className={styles.headerCell}>Amount ($)</div>
+                  <div className={styles.headerCell}>Unit Cost</div>
+                  <div className={styles.headerCell}>Ingredient Link</div>
+                  <div className={styles.headerCell}>Action</div>
+                </div>
+                
+                {invoiceItems.map((item, index) => (
+                  <div key={item.id || index} className={styles.tableRow}>
+                    <div className={styles.tableCell}>
+                      <input
+                        type="text"
+                        value={item.item_name}
+                        onChange={(e) => handleItemChange(index, 'item_name', e.target.value)}
+                        placeholder="e.g., Grilled Chicken"
+                        className={styles.tableInput}
+                      />
+                    </div>
+                    
+                    <div className={styles.tableCell}>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={item.quantity}
+                        onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
+                        placeholder="0"
+                        className={styles.tableInput}
+                      />
+                    </div>
+                    
+                    <div className={styles.tableCell}>
+                      <input
+                        type="text"
+                        value={item.unit}
+                        onChange={(e) => handleItemChange(index, 'unit', e.target.value)}
+                        placeholder="each, lbs, oz"
+                        className={styles.tableInput}
+                      />
+                    </div>
+                    
+                    <div className={styles.tableCell}>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={item.amount}
+                        onChange={(e) => handleItemChange(index, 'amount', e.target.value)}
+                        placeholder="0.00"
+                        className={styles.tableInput}
+                      />
+                    </div>
+                    
+                    <div className={styles.tableCell}>
+                      <span className={styles.unitCostValue}>${item.unit_cost.toFixed(2)}</span>
+                    </div>
+                    
+                    <div className={styles.tableCell}>
+                      <div className={styles.ingredientSearch}>
+                        <input
+                          type="text"
+                          value={item.ingredient_search || ''}
+                          onChange={(e) => handleIngredientSearch(index, e.target.value)}
+                          placeholder="Search ingredients..."
+                          className={styles.tableInput}
+                        />
+                        
+                        {filteredIngredients.length > 0 && (
+                          <div className={styles.searchResults}>
+                            {filteredIngredients.map(ingredient => (
+                              <div
+                                key={ingredient.id}
+                                className={styles.searchResult}
+                                onClick={() => selectIngredient(index, ingredient)}
+                              >
+                                <span className={styles.ingredientName}>{ingredient.name}</span>
+                                <span className={styles.ingredientUnit}>({ingredient.unit})</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className={styles.tableCell}>
+                      <button
+                        className={styles.removeButton}
+                        onClick={() => removeInvoiceItem(index)}
+                        title="Remove item"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Right Panel - File Viewer */}
-        <div style={{ backgroundColor: 'white', padding: '1.5rem', borderRadius: '8px' }}>
-          <h3 style={{ marginBottom: '1rem' }}>Uploaded Invoice</h3>
-          {invoice.file_url && (
-            <div>
-              {invoice.file_url.toLowerCase().includes('.pdf') ? (
-                <iframe
-                  src={invoice.file_url}
-                  style={{ width: '100%', height: '600px', border: '1px solid #e5e7eb', borderRadius: '8px' }}
-                  title="Invoice PDF"
-                />
-              ) : (
-                <img
-                  src={invoice.file_url}
-                  alt="Invoice"
-                  style={{ width: '100%', height: 'auto', maxHeight: '600px', objectFit: 'contain', border: '1px solid #e5e7eb', borderRadius: '8px' }}
-                />
-              )}
-              <div style={{ marginTop: '1rem' }}>
+        <div className={styles.rightPanel}>
+          <div className={styles.fileViewer}>
+            <h3 className={styles.fileTitle}>Uploaded Invoice</h3>
+            {invoice.file_url ? (
+              <div className={styles.fileContainer}>
+                {invoice.file_url.toLowerCase().includes('.pdf') ? (
+                  <iframe
+                    src={invoice.file_url}
+                    className={styles.pdfViewer}
+                    title="Invoice PDF"
+                  />
+                ) : (
+                  <img
+                    src={invoice.file_url}
+                    alt="Invoice"
+                    className={styles.imageViewer}
+                  />
+                )}
                 <a 
                   href={invoice.file_url} 
                   target="_blank" 
                   rel="noopener noreferrer"
-                  style={{ 
-                    background: '#6b7280', 
-                    color: 'white', 
-                    textDecoration: 'none', 
-                    padding: '0.75rem 1rem', 
-                    borderRadius: '6px',
-                    display: 'inline-block'
-                  }}
+                  className={styles.openFileButton}
                 >
+                  <svg className={styles.buttonIcon} viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
+                    <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
+                  </svg>
                   Open in New Tab
                 </a>
               </div>
-            </div>
-          )}
-          {!invoice.file_url && (
-            <div style={{ color: '#6b7280', fontStyle: 'italic', textAlign: 'center', padding: '2rem' }}>
-              No file available
-            </div>
-          )}
+            ) : (
+              <div className={styles.noFile}>
+                <div className={styles.noFileContent}>
+                  <div className={styles.noFileIcon}>📄</div>
+                  <p className={styles.noFileText}>No file available</p>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }
