@@ -17,41 +17,54 @@ export default function AdminDashboard() {
     fetchDashboardStats();
   }, []);
 
-  async function fetchDashboardStats() {
-    try {
-      // Get client count (restaurants)
-      const { data: restaurants, error: restaurantError } = await supabase
-        .from('restaurants')
-        .select('id');
+async function fetchDashboardStats() {
+  try {
+    // Get client count (restaurants)
+    const { data: restaurants, error: restaurantError } = await supabase
+      .from('restaurants')
+      .select('id');
 
-      if (restaurantError) throw restaurantError;
+    if (restaurantError) throw restaurantError;
 
-      // Get pending invoices count (where required fields are null)
-      const { data: pendingInvoices, error: pendingError } = await supabase
-        .from('invoices')
-        .select('id')
-        .or('number.is.null,date.is.null,supplier.is.null,amount.is.null');
+    // Get all invoices and filter in JavaScript
+    const { data: allInvoices, error: invoicesError } = await supabase
+      .from('invoices')
+      .select('id, number, date, supplier, amount');
 
-      if (pendingError) throw pendingError;
+    if (invoicesError) throw invoicesError;
 
-      // Get total invoices count
-      const { data: totalInvoices, error: totalError } = await supabase
-        .from('invoices')
-        .select('id');
+    // DEBUG: Log all invoices to see what we're working with
+    console.log('All invoices:', allInvoices);
 
-      if (totalError) throw totalError;
-
-      setStats({
-        clientCount: restaurants?.length || 0,
-        pendingInvoices: pendingInvoices?.length || 0,
-        totalInvoices: totalInvoices?.length || 0,
-        loading: false
+    // Filter for pending invoices (any field is null or empty)
+    const pendingInvoices = allInvoices.filter(invoice => {
+      const isPending = !invoice.number || !invoice.date || !invoice.supplier || !invoice.amount;
+      
+      // DEBUG: Log each invoice check
+      console.log('Invoice:', invoice.id, {
+        number: invoice.number,
+        date: invoice.date, 
+        supplier: invoice.supplier,
+        amount: invoice.amount,
+        isPending: isPending
       });
-    } catch (error) {
-      console.error('Error fetching dashboard stats:', error);
-      setStats(prev => ({ ...prev, loading: false }));
-    }
+      
+      return isPending;
+    });
+
+    console.log('Pending invoices found:', pendingInvoices.length);
+
+    setStats({
+      clientCount: restaurants?.length || 0,
+      pendingInvoices: pendingInvoices?.length || 0,
+      totalInvoices: allInvoices?.length || 0,
+      loading: false
+    });
+  } catch (error) {
+    console.error('Error fetching dashboard stats:', error);
+    setStats(prev => ({ ...prev, loading: false }));
   }
+}
 
   async function handleSignOut() {
     await supabase.auth.signOut();
