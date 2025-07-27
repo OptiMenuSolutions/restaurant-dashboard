@@ -23,6 +23,7 @@ export default function InvoiceEditor() {
   // Invoice items
   const [invoiceItems, setInvoiceItems] = useState([]);
   const [ingredients, setIngredients] = useState([]);
+  const [activeSearchIndex, setActiveSearchIndex] = useState(null);
   const [filteredIngredients, setFilteredIngredients] = useState([]);
   
   const fetchInvoiceData = useCallback(async () => {
@@ -133,6 +134,7 @@ export default function InvoiceEditor() {
 
   function handleIngredientSearch(index, searchTerm) {
     handleItemChange(index, 'ingredient_search', searchTerm);
+    setActiveSearchIndex(index);
     
     if (searchTerm.length > 1) {
       const filtered = ingredients.filter(ingredient =>
@@ -141,6 +143,7 @@ export default function InvoiceEditor() {
       setFilteredIngredients(filtered);
     } else {
       setFilteredIngredients([]);
+      setActiveSearchIndex(null);
     }
   }
 
@@ -149,6 +152,7 @@ export default function InvoiceEditor() {
     handleItemChange(index, 'ingredient_search', ingredient.name);
     handleItemChange(index, 'unit', ingredient.unit);
     setFilteredIngredients([]);
+    setActiveSearchIndex(null);
   }
 
   async function handleSubmit() {
@@ -184,7 +188,6 @@ export default function InvoiceEditor() {
       // Create missing ingredients before processing items
       for (const item of invoiceItems) {
         if (item.item_name && item.unit && !item.ingredient_id) {
-          // Check if ingredient already exists for this restaurant
           const { data: existingIngredient, error: checkError } = await supabase
             .from('ingredients')
             .select('id')
@@ -194,7 +197,6 @@ export default function InvoiceEditor() {
             .single();
 
           if (checkError && checkError.code === 'PGRST116') {
-            // Ingredient doesn't exist, create it
             const { data: newIngredient, error: createError } = await supabase
               .from('ingredients')
               .insert({
@@ -251,7 +253,34 @@ export default function InvoiceEditor() {
         return;
       }
 
-      // Update existing ingredient prices (THIS IS WHERE COST HISTORY IS LOGGED!)
+      // NEW APPROACH: Collect all menu items that will be affected BEFORE updating prices
+      const affectedMenuItems = new Map();
+      
+      for (const item of invoiceItems) {
+        if (item.ingredient_id && item.unit_cost > 0) {
+          // Get all menu items that use this ingredient
+          const { data: menuItemsUsingIngredient, error } = await supabase
+            .from('menu_item_ingredients')
+            .select('menu_item_id, menu_items!inner(id, name, cost, restaurant_id)')
+            .eq('ingredient_id', item.ingredient_id);
+
+          if (!error && menuItemsUsingIngredient) {
+            menuItemsUsingIngredient.forEach(record => {
+              const menuItem = record.menu_items;
+              if (!affectedMenuItems.has(menuItem.id)) {
+                affectedMenuItems.set(menuItem.id, {
+                  id: menuItem.id,
+                  name: menuItem.name,
+                  oldCost: menuItem.cost,
+                  restaurant_id: menuItem.restaurant_id
+                });
+              }
+            });
+          }
+        }
+      }
+
+      // Update ingredient prices
       for (const item of invoiceItems) {
         if (item.ingredient_id && item.unit_cost > 0) {
           await supabase
@@ -261,6 +290,48 @@ export default function InvoiceEditor() {
               last_ordered_at: invoiceDetails.date
             })
             .eq('id', item.ingredient_id);
+        }
+      }
+
+      // Now manually create cost history entries for affected menu items
+      for (const [menuItemId, menuItemInfo] of affectedMenuItems) {
+        // Calculate new cost after all ingredient price updates
+        const { data: itemIngredients, error } = await supabase
+          .from('menu_item_ingredients')
+          .select(`
+            quantity,
+            ingredients:ingredient_id (
+              last_price
+            )
+          `)
+          .eq('menu_item_id', menuItemId);
+
+        if (!error && itemIngredients) {
+          let newCost = 0;
+          itemIngredients.forEach(ing => {
+            const ingredientCost = ing.ingredients?.last_price || 0;
+            newCost += ing.quantity * ingredientCost;
+          });
+
+          // Update menu item cost
+          await supabase
+            .from('menu_items')
+            .update({ cost: newCost })
+            .eq('id', menuItemId);
+
+          // Only log if cost actually changed
+          if (menuItemInfo.oldCost !== newCost) {
+            await supabase
+              .from('menu_item_cost_history')
+              .insert({
+                menu_item_id: menuItemId,
+                menu_item_name: menuItemInfo.name,
+                old_cost: menuItemInfo.oldCost,
+                new_cost: newCost,
+                change_reason: 'invoice_saved',
+                restaurant_id: menuItemInfo.restaurant_id
+              });
+          }
         }
       }
 
@@ -478,7 +549,7 @@ export default function InvoiceEditor() {
                           className={styles.tableInput}
                         />
                         
-                        {filteredIngredients.length > 0 && (
+                        {filteredIngredients.length > 0 && activeSearchIndex === index && (
                           <div className={styles.searchResults}>
                             {filteredIngredients.map(ingredient => (
                               <div
