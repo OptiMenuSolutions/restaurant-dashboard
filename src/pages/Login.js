@@ -40,15 +40,15 @@ export default function Login() {
       .eq('id', user.id)
       .single();
 
-    if (profileError && profileError?.code === 'PGRST116') {
-      // No profile exists, create one from metadata
+    // If no profile exists, create one (database trigger will create restaurant automatically)
+    if (profileError || !existingProfile) {
       const { error: insertError } = await supabase.from('profiles').insert([
         {
           id: user.id,
           email: user.email,
           full_name: user.user_metadata?.full_name || '',
           restaurant_name: user.user_metadata?.restaurant_name || '',
-          restaurant_id: user.user_metadata?.restaurant_id || null,
+          restaurant_id: null, // Will be set by database trigger
         },
       ]);
 

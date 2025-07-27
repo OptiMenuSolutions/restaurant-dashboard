@@ -7,16 +7,13 @@ import Layout from "../components/Layout";
 
 export default function Invoices() {
   const [invoices, setInvoices] = useState([]);
-  const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState({
-    number: "",
-    date: "",
-    supplier: "",
-    amount: "",
-    file: null,
-  });
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState([]);
   const [confirmationMessage, setConfirmationMessage] = useState("");
   const [restaurantId, setRestaurantId] = useState(null);
+  const [dragActive, setDragActive] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -52,67 +49,136 @@ export default function Invoices() {
       .from("invoices")
       .select("*")
       .eq("restaurant_id", restaurantId)
-      .order("date", { ascending: false });
+      .order("created_at", { ascending: false });
 
     if (!error) setInvoices(data);
   }
 
-  function handleChange(e) {
-    const { name, value, files } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: files ? files[0] : value,
-    }));
-  }
-
-  function validateForm() {
-    const { number, date, supplier, amount, file } = formData;
-    return number && date && supplier && amount && file;
-  }
-
-  async function handleSubmit(e) {
+  function handleDrag(e) {
     e.preventDefault();
-    if (!validateForm()) {
-      alert("Please fill in all fields and select a file.");
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  }
+
+  function handleDrop(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    
+    const files = Array.from(e.dataTransfer.files);
+    const validFiles = files.filter(file => 
+      file.type === 'application/pdf' || file.type.startsWith('image/')
+    );
+    
+    if (validFiles.length !== files.length) {
+      alert('Only PDF and image files are allowed.');
+    }
+    
+    setSelectedFiles(prev => [...prev, ...validFiles]);
+  }
+
+  function handleFileSelect(e) {
+    const files = Array.from(e.target.files);
+    setSelectedFiles(prev => [...prev, ...files]);
+  }
+
+  function removeFile(index) {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  }
+
+  async function handleUpload() {
+    if (selectedFiles.length === 0) {
+      alert("Please select at least one file.");
       return;
     }
 
-    const fileExt = formData.file.name.split(".").pop();
-    const filePath = `invoices/${formData.number}-${Date.now()}.${fileExt}`;
+    setUploading(true);
+    setUploadProgress(new Array(selectedFiles.length).fill(0));
+    
+    const uploadPromises = selectedFiles.map(async (file, index) => {
+      try {
+        const fileExt = file.name.split(".").pop();
+        const timestamp = Date.now();
+        const filePath = `invoices/${restaurantId}/${timestamp}-${index}.${fileExt}`;
 
-    const { error: uploadError } = await supabase.storage
-      .from("invoices")
-      .upload(filePath, formData.file);
+        // Upload file to storage
+        const { error: uploadError } = await supabase.storage
+          .from("invoices")
+          .upload(filePath, file);
 
-    if (uploadError) {
-      alert("Failed to upload file.");
-      return;
+        if (uploadError) {
+          console.error(`Failed to upload ${file.name}:`, uploadError);
+          return { success: false, fileName: file.name, error: uploadError.message };
+        }
+
+        // Get public URL
+        const publicURL = supabase.storage
+          .from("invoices")
+          .getPublicUrl(filePath).data.publicUrl;
+
+        // Insert into database
+        const { error: insertError } = await supabase.from("invoices").insert([
+          {
+            restaurant_id: restaurantId,
+            file_url: publicURL,
+            // date, number, supplier, amount will be filled by admin
+          },
+        ]);
+
+        if (insertError) {
+          console.error(`Failed to save ${file.name} metadata:`, insertError);
+          return { success: false, fileName: file.name, error: insertError.message };
+        }
+
+        // Update progress
+        setUploadProgress(prev => {
+          const newProgress = [...prev];
+          newProgress[index] = 100;
+          return newProgress;
+        });
+
+        return { success: true, fileName: file.name };
+      } catch (error) {
+        console.error(`Error processing ${file.name}:`, error);
+        return { success: false, fileName: file.name, error: error.message };
+      }
+    });
+
+    const results = await Promise.all(uploadPromises);
+    
+    const successCount = results.filter(r => r.success).length;
+    const failureCount = results.filter(r => !r.success).length;
+    
+    if (successCount > 0) {
+      setConfirmationMessage(`${successCount} invoice(s) uploaded successfully!`);
+      fetchInvoices(); // Refresh the list
+    }
+    
+    if (failureCount > 0) {
+      const failedFiles = results.filter(r => !r.success).map(r => r.fileName);
+      alert(`Failed to upload: ${failedFiles.join(', ')}`);
     }
 
-    const publicURL = supabase.storage
-      .from("invoices")
-      .getPublicUrl(filePath).data.publicUrl;
+    // Reset form
+    setSelectedFiles([]);
+    setShowUploadModal(false);
+    setUploading(false);
+    setUploadProgress([]);
+    
+    // Clear confirmation message after 3 seconds
+    setTimeout(() => setConfirmationMessage(""), 3000);
+  }
 
-    const { error: insertError } = await supabase.from("invoices").insert([
-      {
-        number: formData.number,
-        date: formData.date,
-        supplier: formData.supplier,
-        amount: parseFloat(formData.amount),
-        file_url: publicURL,
-        restaurant_id: restaurantId, // ✅ critical field
-      },
-    ]);
-
-    if (insertError) {
-      alert("Failed to save invoice metadata.");
-      return;
+  function closeModal() {
+    if (!uploading) {
+      setShowUploadModal(false);
+      setSelectedFiles([]);
+      setUploadProgress([]);
     }
-
-    setConfirmationMessage("Invoice uploaded successfully!");
-    setFormData({ number: "", date: "", supplier: "", amount: "", file: null });
-    setShowForm(false);
-    fetchInvoices();
   }
 
   return (
@@ -122,66 +188,105 @@ export default function Invoices() {
 
         <button
           className={styles.uploadButton}
-          onClick={() => setShowForm(true)}
+          onClick={() => setShowUploadModal(true)}
         >
-          Upload Invoice
+          Upload Invoices
         </button>
 
-        {showForm && (
-          <form className={styles.form} onSubmit={handleSubmit}>
-            <label>
-              Invoice No.
-              <input
-                type="text"
-                name="number"
-                value={formData.number}
-                onChange={handleChange}
-                required
-              />
-            </label>
-            <label>
-              Invoice Date
-              <input
-                type="date"
-                name="date"
-                value={formData.date}
-                onChange={handleChange}
-                required
-              />
-            </label>
-            <label>
-              Supplier
-              <input
-                type="text"
-                name="supplier"
-                value={formData.supplier}
-                onChange={handleChange}
-                required
-              />
-            </label>
-            <label>
-              Total Amount
-              <input
-                type="number"
-                name="amount"
-                value={formData.amount}
-                onChange={handleChange}
-                step="0.01"
-                required
-              />
-            </label>
-            <label>
-              File (PDF or Image)
-              <input
-                type="file"
-                name="file"
-                onChange={handleChange}
-                accept="application/pdf,image/*"
-                required
-              />
-            </label>
-            <button type="submit">Submit</button>
-          </form>
+        {/* Upload Modal */}
+        {showUploadModal && (
+          <div className={styles.modalOverlay} onClick={closeModal}>
+            <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+              <div className={styles.modalHeader}>
+                <h2>Upload Invoices</h2>
+                <button 
+                  className={styles.closeButton} 
+                  onClick={closeModal}
+                  disabled={uploading}
+                >
+                  ×
+                </button>
+              </div>
+              
+              <div className={styles.modalContent}>
+                {/* Drag & Drop Zone */}
+                <div 
+                  className={`${styles.dropZone} ${dragActive ? styles.dragActive : ''}`}
+                  onDragEnter={handleDrag}
+                  onDragLeave={handleDrag}
+                  onDragOver={handleDrag}
+                  onDrop={handleDrop}
+                >
+                  <input
+                    type="file"
+                    multiple
+                    accept="application/pdf,image/*"
+                    onChange={handleFileSelect}
+                    className={styles.fileInput}
+                    id="fileInput"
+                    disabled={uploading}
+                  />
+                  <label htmlFor="fileInput" className={styles.dropZoneLabel}>
+                    <div className={styles.dropZoneContent}>
+                      <div className={styles.uploadIcon}>📁</div>
+                      <p>Drag & drop your invoice files here</p>
+                      <p>or <span className={styles.browseText}>click to browse</span></p>
+                      <small>Supports PDF and image files</small>
+                    </div>
+                  </label>
+                </div>
+
+                {/* Selected Files List */}
+                {selectedFiles.length > 0 && (
+                  <div className={styles.filesList}>
+                    <h3>Selected Files ({selectedFiles.length})</h3>
+                    {selectedFiles.map((file, index) => (
+                      <div key={index} className={styles.fileItem}>
+                        <span className={styles.fileName}>{file.name}</span>
+                        <span className={styles.fileSize}>
+                          {(file.size / 1024 / 1024).toFixed(2)} MB
+                        </span>
+                        {uploading && (
+                          <div className={styles.progressBar}>
+                            <div 
+                              className={styles.progressFill}
+                              style={{ width: `${uploadProgress[index] || 0}%` }}
+                            ></div>
+                          </div>
+                        )}
+                        {!uploading && (
+                          <button 
+                            className={styles.removeButton}
+                            onClick={() => removeFile(index)}
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Upload Button */}
+                <div className={styles.modalActions}>
+                  <button 
+                    className={styles.cancelButton}
+                    onClick={closeModal}
+                    disabled={uploading}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    className={styles.uploadButtonModal}
+                    onClick={handleUpload}
+                    disabled={selectedFiles.length === 0 || uploading}
+                  >
+                    {uploading ? 'Uploading...' : `Upload ${selectedFiles.length} File(s)`}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
 
         {confirmationMessage && (
@@ -191,10 +296,12 @@ export default function Invoices() {
         <table className={styles.table}>
           <thead>
             <tr>
+              <th>Upload Date</th>
               <th>Invoice No.</th>
               <th>Invoice Date</th>
               <th>Supplier</th>
               <th>Total Amount</th>
+              <th>Status</th>
             </tr>
           </thead>
           <tbody>
@@ -204,10 +311,16 @@ export default function Invoices() {
                 onClick={() => navigate(`/invoices/${invoice.id}`)}
                 className={styles.clickableRow}
               >
-                <td>{invoice.number}</td>
-                <td>{invoice.date}</td>
-                <td>{invoice.supplier}</td>
-                <td>${invoice.amount.toFixed(2)}</td>
+                <td>{new Date(invoice.created_at).toLocaleDateString()}</td>
+                <td>{invoice.number || 'Pending Review'}</td>
+                <td>{invoice.date ? new Date(invoice.date).toLocaleDateString() : 'Pending Review'}</td>
+                <td>{invoice.supplier || 'Pending Review'}</td>
+                <td>{invoice.amount ? `$${invoice.amount.toFixed(2)}` : 'Pending Review'}</td>
+                <td>
+                  <span className={`${styles.status} ${invoice.number ? styles.processed : styles.pending}`}>
+                    {invoice.number ? 'Processed' : 'Pending Review'}
+                  </span>
+                </td>
               </tr>
             ))}
           </tbody>

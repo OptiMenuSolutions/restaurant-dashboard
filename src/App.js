@@ -8,6 +8,11 @@ import IngredientDetail from './pages/IngredientDetail';
 import InvoiceDetail from './pages/InvoiceDetail';
 import Signup from './pages/Signup';
 import Login from './pages/Login';
+import AdminLogin from './pages/AdminLogin';
+import AdminDashboard from './pages/AdminDashboard';
+import PendingInvoices from './pages/PendingInvoices';
+import InvoiceEditor from './pages/InvoiceEditor';
+import MenuItemsManagement from './pages/MenuItemsManagement';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 function ProtectedRoute({ children }) {
@@ -24,9 +29,18 @@ function App() {
     <Router>
       <AuthProvider>
         <Routes>
+          {/* Public routes */}
           <Route path="/signup" element={<Signup />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/admin/login" element={<AdminLogin />} />
 
+          {/* Admin routes (no protection needed - handled in AdminLogin) */}
+          <Route path="/admin/dashboard" element={<AdminDashboard />} />
+          <Route path="/admin/pending-invoices" element={<PendingInvoices />} />
+          <Route path="/admin/invoice-editor/:id" element={<InvoiceEditor />} />
+          <Route path="/admin/menu-items" element={<MenuItemsManagement />} />
+
+          {/* Protected client routes */}
           <Route
             path="/"
             element={

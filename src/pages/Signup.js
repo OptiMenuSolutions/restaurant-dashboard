@@ -1,9 +1,9 @@
 // File: src/pages/Signup.js
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import supabase from '../supabaseClient';
 import styles from './Signup.module.css';
-import { v4 as uuidv4 } from 'uuid'; // Ensure uuid is installed
+import { v4 as uuidv4 } from 'uuid';
 
 export default function Signup() {
   const [formData, setFormData] = useState({
@@ -14,6 +14,7 @@ export default function Signup() {
   });
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   function handleChange(e) {
@@ -22,6 +23,10 @@ export default function Signup() {
 
   async function handleSubmit(e) {
     e.preventDefault();
+    
+    if (loading) return;
+    
+    setLoading(true);
     setError('');
     setMessage('');
 
@@ -41,32 +46,40 @@ export default function Signup() {
 
     if (signUpError) {
       setError(signUpError.message);
+      setLoading(false);
       return;
     }
 
     // If email confirmation is required, no user is returned — stop here
     if (!data.user) {
       setMessage('Signup successful! Please check your email to confirm your account before logging in.');
+      setLoading(false);
       return;
     }
 
-    // Insert profile now that user exists
-    const { error: insertError } = await supabase.from('profiles').insert([
-      {
-        id: data.user.id,
-        email: formData.email,
-        full_name: formData.fullName,
-        restaurant_name: formData.restaurantName,
-        restaurant_id: restaurantId,
-      },
-    ]);
+    // Only create profile if user is immediately available (no email confirmation required)
+    // If email confirmation is required, the profile will be created during first login
+    if (data.user && data.session) {
+      // Insert profile - the database trigger will automatically create the restaurant
+      const { error: insertError } = await supabase.from('profiles').insert([
+        {
+          id: data.user.id,
+          email: formData.email,
+          full_name: formData.fullName,
+          restaurant_name: formData.restaurantName,
+          restaurant_id: null, // Will be updated by the database trigger
+        },
+      ]);
 
-    if (insertError) {
-      setError('Failed to save profile info: ' + insertError.message);
-      console.error('Insert profile error:', insertError);
-      return;
+      if (insertError) {
+        setError('Failed to save profile info: ' + insertError.message);
+        console.error('Insert profile error:', insertError);
+        setLoading(false);
+        return;
+      }
     }
 
+    setLoading(false);
     navigate('/login');
   }
 
@@ -82,6 +95,7 @@ export default function Signup() {
             value={formData.email}
             onChange={handleChange}
             required
+            disabled={loading}
           />
           <input
             name="password"
@@ -90,6 +104,7 @@ export default function Signup() {
             value={formData.password}
             onChange={handleChange}
             required
+            disabled={loading}
           />
           <input
             name="fullName"
@@ -98,6 +113,7 @@ export default function Signup() {
             value={formData.fullName}
             onChange={handleChange}
             required
+            disabled={loading}
           />
           <input
             name="restaurantName"
@@ -106,8 +122,11 @@ export default function Signup() {
             value={formData.restaurantName}
             onChange={handleChange}
             required
+            disabled={loading}
           />
-          <button type="submit" className={styles.button}>Sign Up</button>
+          <button type="submit" className={styles.button} disabled={loading}>
+            {loading ? 'Signing Up...' : 'Sign Up'}
+          </button>
         </form>
         {error && <p className={styles.error}>{error}</p>}
         {message && <p className={styles.message}>{message}</p>}
