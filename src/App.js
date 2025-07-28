@@ -6,6 +6,7 @@ import Ingredients from './pages/Ingredients';
 import MenuItems from './pages/MenuItems';
 import IngredientDetail from './pages/IngredientDetail';
 import InvoiceDetail from './pages/InvoiceDetail';
+import MenuItemDetail from './pages/MenuItemDetail'; // ADD THIS IMPORT
 import Signup from './pages/Signup';
 import Login from './pages/Login';
 import AdminLogin from './pages/AdminLogin';
@@ -86,6 +87,15 @@ function App() {
             element={
               <ProtectedRoute>
                 <InvoiceDetail />
+              </ProtectedRoute>
+            }
+          />
+          {/* ADD THIS NEW ROUTE FOR MENU ITEM DETAIL */}
+          <Route
+            path="/menu-items/:id"
+            element={
+              <ProtectedRoute>
+                <MenuItemDetail />
               </ProtectedRoute>
             }
           />

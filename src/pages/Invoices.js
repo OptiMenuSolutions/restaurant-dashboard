@@ -1,4 +1,4 @@
-// File: src/pages/Invoices.js
+// File: src/pages/Invoices.js - PRODUCTION VERSION
 import React, { useState, useEffect } from "react";
 import styles from "./Invoices.module.css";
 import { useNavigate } from "react-router-dom";
@@ -7,6 +7,8 @@ import Layout from "../components/Layout";
 
 export default function Invoices() {
   const [invoices, setInvoices] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
@@ -27,31 +29,71 @@ export default function Invoices() {
   }, [restaurantId]);
 
   async function getRestaurantId() {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    try {
+      const {
+        data: { user },
+        error: userError
+      } = await supabase.auth.getUser();
 
-    if (!user) return;
+      if (userError) {
+        setError("Failed to get user information");
+        setLoading(false);
+        return;
+      }
 
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("restaurant_id")
-      .eq("id", user.id)
-      .single();
+      if (!user) {
+        setError("No authenticated user found");
+        setLoading(false);
+        return;
+      }
 
-    if (!error && data?.restaurant_id) {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("restaurant_id")
+        .eq("id", user.id)
+        .single();
+
+      if (error) {
+        setError("Failed to get restaurant information");
+        setLoading(false);
+        return;
+      }
+
+      if (!data?.restaurant_id) {
+        setError("No restaurant associated with this account");
+        setLoading(false);
+        return;
+      }
+
       setRestaurantId(data.restaurant_id);
+    } catch (err) {
+      setError("An unexpected error occurred");
+      setLoading(false);
     }
   }
 
   async function fetchInvoices() {
-    const { data, error } = await supabase
-      .from("invoices")
-      .select("*")
-      .eq("restaurant_id", restaurantId)
-      .order("created_at", { ascending: false });
+    try {
+      setLoading(true);
+      setError("");
 
-    if (!error) setInvoices(data);
+      const { data, error } = await supabase
+        .from("invoices")
+        .select("*")
+        .eq("restaurant_id", restaurantId)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        setError("Failed to fetch invoices");
+        return;
+      }
+
+      setInvoices(data || []);
+    } catch (err) {
+      setError("An unexpected error occurred while fetching invoices");
+    } finally {
+      setLoading(false);
+    }
   }
 
   function handleDrag(e) {
@@ -93,6 +135,11 @@ export default function Invoices() {
   async function handleUpload() {
     if (selectedFiles.length === 0) {
       alert("Please select at least one file.");
+      return;
+    }
+
+    if (!restaurantId) {
+      alert("Restaurant information not found. Please try logging out and back in.");
       return;
     }
 
@@ -181,6 +228,79 @@ export default function Invoices() {
     }
   }
 
+  function formatDate(dateString) {
+    if (!dateString) return "Not provided";
+    try {
+      return new Date(dateString).toLocaleDateString();
+    } catch {
+      return "Invalid date";
+    }
+  }
+
+  function getInvoiceStatus(invoice) {
+    // Invoice is considered processed if it has all key fields filled
+    const isProcessed = invoice.number && invoice.date && invoice.supplier && invoice.amount;
+    return isProcessed ? 'processed' : 'pending';
+  }
+
+  function formatCurrency(amount) {
+    if (!amount || amount === null || amount === undefined) {
+      return (
+        <span className={styles.currencyValue}>
+          <span className={styles.currencySymbol}>$</span>
+          <span className={styles.currencyAmount}>--</span>
+        </span>
+      );
+    }
+    
+    const numAmount = parseFloat(amount);
+    if (isNaN(numAmount)) {
+      return (
+        <span className={styles.currencyValue}>
+          <span className={styles.currencySymbol}>$</span>
+          <span className={styles.currencyAmount}>--</span>
+        </span>
+      );
+    }
+    
+    const formattedAmount = numAmount.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+    
+    return (
+      <span className={styles.currencyValue}>
+        <span className={styles.currencySymbol}>$</span>
+        <span className={styles.currencyAmount}>{formattedAmount}</span>
+      </span>
+    );
+  }
+
+  if (loading) {
+    return (
+      <Layout>
+        <div className={styles.container}>
+          <div style={{ textAlign: 'center', padding: '2rem' }}>
+            <p>Loading invoices...</p>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (error) {
+    return (
+      <Layout>
+        <div className={styles.container}>
+          <div style={{ textAlign: 'center', padding: '2rem', color: 'red' }}>
+            <p>Error: {error}</p>
+            <button onClick={() => window.location.reload()}>Retry</button>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout>
       <div className={styles.container}>
@@ -217,23 +337,24 @@ export default function Invoices() {
                   onDragOver={handleDrag}
                   onDrop={handleDrop}
                 >
+                  <div className={styles.dropZoneContent}>
+                    <div className={styles.uploadIcon}>📁</div>
+                    <p>Drag & drop your invoice files here</p>
+                    <p>or <span 
+                      className={styles.browseText}
+                      onClick={() => document.getElementById('fileInput').click()}
+                    >click to browse</span></p>
+                    <small>Supports PDF and image files</small>
+                  </div>
                   <input
                     type="file"
                     multiple
                     accept="application/pdf,image/*"
                     onChange={handleFileSelect}
-                    className={styles.fileInput}
+                    style={{ display: 'none' }}
                     id="fileInput"
                     disabled={uploading}
                   />
-                  <label htmlFor="fileInput" className={styles.dropZoneLabel}>
-                    <div className={styles.dropZoneContent}>
-                      <div className={styles.uploadIcon}>📁</div>
-                      <p>Drag & drop your invoice files here</p>
-                      <p>or <span className={styles.browseText}>click to browse</span></p>
-                      <small>Supports PDF and image files</small>
-                    </div>
-                  </label>
                 </div>
 
                 {/* Selected Files List */}
@@ -293,38 +414,48 @@ export default function Invoices() {
           <p className={styles.confirmation}>{confirmationMessage}</p>
         )}
 
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th>Upload Date</th>
-              <th>Invoice No.</th>
-              <th>Invoice Date</th>
-              <th>Supplier</th>
-              <th>Total Amount</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {invoices.map((invoice) => (
-              <tr
-                key={invoice.id}
-                onClick={() => navigate(`/invoices/${invoice.id}`)}
-                className={styles.clickableRow}
-              >
-                <td>{new Date(invoice.created_at).toLocaleDateString()}</td>
-                <td>{invoice.number || 'Pending Review'}</td>
-                <td>{invoice.date ? new Date(invoice.date).toLocaleDateString() : 'Pending Review'}</td>
-                <td>{invoice.supplier || 'Pending Review'}</td>
-                <td>{invoice.amount ? `$${invoice.amount.toFixed(2)}` : 'Pending Review'}</td>
-                <td>
-                  <span className={`${styles.status} ${invoice.number ? styles.processed : styles.pending}`}>
-                    {invoice.number ? 'Processed' : 'Pending Review'}
-                  </span>
-                </td>
+        {/* Invoices Table */}
+        {invoices.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '2rem' }}>
+            <p>No invoices found. Upload your first invoice to get started!</p>
+          </div>
+        ) : (
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>Upload Date</th>
+                <th>Invoice No.</th>
+                <th>Invoice Date</th>
+                <th>Supplier</th>
+                <th>Total Amount</th>
+                <th>Status</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {invoices.map((invoice) => {
+                const status = getInvoiceStatus(invoice);
+                return (
+                  <tr
+                    key={invoice.id}
+                    onClick={() => navigate(`/invoices/${invoice.id}`)}
+                    className={styles.clickableRow}
+                  >
+                    <td data-label="Upload Date">{formatDate(invoice.created_at)}</td>
+                    <td data-label="Invoice No.">{invoice.number || 'Pending Review'}</td>
+                    <td data-label="Invoice Date">{invoice.date ? formatDate(invoice.date) : 'Pending Review'}</td>
+                    <td data-label="Supplier">{invoice.supplier || 'Pending Review'}</td>
+                    <td data-label="Total Amount">{invoice.amount ? formatCurrency(invoice.amount) : 'Pending Review'}</td>
+                    <td data-label="Status">
+                      <span className={`${styles.status} ${styles[status]}`}>
+                        {status === 'processed' ? 'Processed' : 'Pending Review'}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
       </div>
     </Layout>
   );

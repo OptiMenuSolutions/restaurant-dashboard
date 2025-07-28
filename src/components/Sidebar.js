@@ -1,3 +1,4 @@
+// File: src/components/Sidebar.js
 import { NavLink } from "react-router-dom";
 import styles from "./Sidebar.module.css";
 

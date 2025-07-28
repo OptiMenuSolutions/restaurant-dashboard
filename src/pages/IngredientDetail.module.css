@@ -1,28 +1,472 @@
+/* Enhanced IngredientDetail.module.css */
+
 .container {
   padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
 }
 
+/* Header */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 1.5rem;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.backButton {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #f8fafc;
+  color: #4f46e5;
+  border: 1px solid #e2e8f0;
+  padding: 0.75rem 1.25rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  text-decoration: none;
+}
+
+.backButton:hover {
+  background: #e2e8f0;
+  transform: translateX(-2px);
+}
+
+.title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #1a202c;
+  margin: 0;
+  flex: 1;
+  text-align: center;
+}
+
+.currentPrice {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.currentPrice {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #059669;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+}
+
+.priceUnit {
+  font-size: 0.875rem;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+/* Overview Cards */
+.overviewCards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.overviewCard {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  border: 1px solid #e5e7eb;
+  text-align: center;
+  transition: transform 0.2s ease;
+}
+
+.overviewCard:hover {
+  transform: translateY(-2px);
+}
+
+.cardLabel {
+  color: #6b7280;
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+}
+
+.cardValue {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1f2937;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+}
+
+/* Card Styles */
+.statsCard,
+.chartCard,
+.menuItemsCard,
+.historyCard {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+}
+
+.cardTitle {
+  background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+  padding: 1.5rem 2rem;
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #374151;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+/* Statistics Grid */
+.statsGrid {
+  padding: 2rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1.5rem;
+}
+
+.statItem {
+  text-align: center;
+  padding: 1rem;
+  background: #f9fafb;
+  border-radius: 8px;
+}
+
+.statLabel {
+  display: block;
+  color: #6b7280;
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+}
+
+.statValue {
+  display: block;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1f2937;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+}
+
+/* Chart */
 .chartWrapper {
-  margin: 2rem 0;
+  padding: 2rem;
   width: 100%;
-  height: 250px;
+}
+
+/* Table Styles */
+.tableWrapper {
+  overflow-x: auto;
 }
 
 .table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 1.5rem;
+  margin: 0;
 }
 
-.table th,
-.table td {
-  padding: 0.5rem;
-  border: 1px solid #ccc;
+.table th {
+  background: #f9fafb;
+  color: #374151;
+  font-weight: 600;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1rem 1.25rem;
   text-align: left;
+  border-bottom: 2px solid #e5e7eb;
 }
 
-h2,
-h3 {
-  margin-top: 2rem;
+.table th:nth-child(3),
+.table th:nth-child(4),
+.table th:nth-child(5),
+.table th:nth-child(6) {
+  text-align: right;
+}
+
+.table td {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #f3f4f6;
+  font-size: 0.95rem;
+  color: #374151;
+  vertical-align: middle;
+}
+
+.table td:nth-child(3),
+.table td:nth-child(4),
+.table td:nth-child(5),
+.table td:nth-child(6) {
+  text-align: right;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+}
+
+.menuItemName {
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.costValue {
+  color: #059669;
+  font-weight: 600;
+}
+
+.totalValue {
+  color: #1f2937;
+  font-weight: 700;
+}
+
+.invoiceNumber {
+  color: #4f46e5;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+/* Clickable rows */
+.clickableRow {
+  cursor: pointer;
+  transition: all 0.15s ease;
+  position: relative;
+}
+
+.clickableRow:hover {
+  background-color: #f8fafc;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.clickableRow:hover .invoiceNumber {
+  color: #3730a3;
+}
+
+.clickableRow:active {
+  transform: translateY(0);
+}
+
+/* Loading and Error States */
+.loadingState,
+.errorState,
+.emptyState {
+  text-align: center;
+  padding: 4rem 2rem;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  border: 1px solid #e5e7eb;
+}
+
+.loadingSpinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #e5e7eb;
+  border-top: 3px solid #4f46e5;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 1rem auto;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.errorIcon,
+.emptyIcon {
+  font-size: 3rem;
   margin-bottom: 1rem;
+  opacity: 0.7;
+}
+
+.errorState h3,
+.emptyState h3 {
+  font-size: 1.5rem;
+  margin-bottom: 0.5rem;
+  color: #374151;
+}
+
+.errorState p,
+.emptyState p {
+  color: #6b7280;
+  font-size: 1rem;
+  margin-bottom: 1.5rem;
+  max-width: 500px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.errorActions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.retryButton {
+  background: #4f46e5;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background-color 0.2s ease;
+}
+
+.retryButton:hover {
+  background: #4338ca;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .container {
+    padding: 1.5rem;
+    gap: 1.5rem;
+  }
+  
+  .overviewCards {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  }
+  
+  .statsGrid {
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 1rem;
+    padding: 1.5rem;
+  }
+  
+  .title {
+    font-size: 2rem;
+  }
+  
+  .cardTitle {
+    padding: 1rem 1.5rem;
+    font-size: 1.125rem;
+  }
+  
+  .chartWrapper {
+    padding: 1.5rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 1rem;
+    gap: 1rem;
+  }
+  
+  .header {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: stretch;
+  }
+  
+  .title {
+    text-align: center;
+    font-size: 1.75rem;
+  }
+  
+  .currentPrice {
+    text-align: center;
+  }
+  
+  .overviewCards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .overviewCard {
+    padding: 1rem;
+  }
+  
+  .cardValue {
+    font-size: 1.25rem;
+  }
+  
+  .statsGrid {
+    grid-template-columns: repeat(2, 1fr);
+    padding: 1rem;
+  }
+  
+  .cardTitle {
+    padding: 1rem;
+    font-size: 1rem;
+  }
+  
+  .chartWrapper {
+    padding: 1rem;
+  }
+  
+  /* Stack table on mobile */
+  .table,
+  .table thead,
+  .table tbody,
+  .table th,
+  .table td,
+  .table tr {
+    display: block;
+  }
+  
+  .table thead tr {
+    position: absolute;
+    top: -9999px;
+    left: -9999px;
+  }
+  
+  .table tr {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    padding: 1rem;
+    background: #fafafa;
+  }
+  
+  .table td {
+    border: none;
+    position: relative;
+    padding: 0.5rem 0;
+    padding-left: 35%;
+    text-align: left !important;
+  }
+  
+  .table td:before {
+    content: attr(data-label);
+    position: absolute;
+    left: 0;
+    width: 30%;
+    padding-right: 10px;
+    white-space: nowrap;
+    font-weight: 600;
+    color: #6b7280;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+  }
+  
+  .errorActions {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .backButton,
+  .retryButton {
+    width: 100%;
+    max-width: 200px;
+  }
+}
+
+@media (max-width: 480px) {
+  .overviewCards {
+    grid-template-columns: 1fr;
+  }
+  
+  .statsGrid {
+    grid-template-columns: 1fr;
+  }
 }
