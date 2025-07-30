@@ -1,117 +1,13 @@
-.searchResults {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  background: white;
-  border: 1px solid #d1d5db;
-  border-top: none;
-  border-radius: 0 0 6px 6px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  z-index: 10;
-  max-height: 200px;
-  overflow-y: auto;
-}
+/* MenuItemsManagement.module.css */
 
-.searchResult {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.75rem;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-  border-bottom: 1px solid #f1f5f9;
-}
-
-.searchResult:hover {
-  background: #f3f4f6;
-}
-
-.searchResult:last-child {
-  border-bottom: none;
-}
-
-.ingredientName {
-  font-weight: 500;
-  color: #374151;
-  flex: 1;
-}
-
-.ingredientUnit {
-  font-size: 0.75rem;
-  color: #6b7280;
-}
-
-.ingredientPrice {
-  font-size: 0.75rem;
-  color: #059669;
-  font-weight: 500;
-  margin-left: 0.5rem;
-  background: #ecfdf5;
-  padding: 0.125rem 0.375rem;
-  border-radius: 4px;
-}/* File: src/pages/MenuItemsManagement.module.css */
-
+/* Base Layout */
 .wrapper {
   min-height: 100vh;
   background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
-/* Header Styles */
-.header {
-  background: white;
-  border-bottom: 1px solid #e2e8f0;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
-
-.headerContent {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 1rem 2rem;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.backButton {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  background: #f1f5f9;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  color: #475569;
-  text-decoration: none;
-  font-weight: 500;
-  font-size: 0.875rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.backButton:hover {
-  background: #e2e8f0;
-  color: #334155;
-  transform: translateX(-2px);
-}
-
-.backIcon {
-  width: 16px;
-  height: 16px;
-}
-
-.title {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: #1e293b;
-  margin: 0;
-}
-
-/* Loading Styles */
+/* Loading States */
 .loadingContainer {
   display: flex;
   flex-direction: column;
@@ -122,8 +18,8 @@
 }
 
 .spinner {
-  width: 40px;
-  height: 40px;
+  width: 2rem;
+  height: 2rem;
   border: 3px solid #e2e8f0;
   border-top: 3px solid #3b82f6;
   border-radius: 50%;
@@ -141,18 +37,68 @@
   font-weight: 500;
 }
 
+/* Header */
+.header {
+  background: white;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 1rem 0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+.headerContent {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.backButton {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  color: #475569;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.backButton:hover {
+  background: #e2e8f0;
+  color: #334155;
+  transform: translateY(-1px);
+}
+
+.backIcon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.title {
+  font-size: 1.875rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0;
+}
+
 /* Main Content */
 .main {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 2rem;
-  min-height: calc(100vh - 80px);
+  padding: 2rem 1.5rem;
 }
 
 /* Restaurant Selection */
 .restaurantSelection {
-  max-width: 800px;
-  margin: 0 auto;
   text-align: center;
 }
 
@@ -175,25 +121,26 @@
 
 .restaurantGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 1.5rem;
-  margin-top: 2rem;
+  max-width: 900px;
+  margin: 0 auto;
 }
 
 .restaurantCard {
   background: white;
   border: 2px solid #e2e8f0;
-  border-radius: 12px;
+  border-radius: 1rem;
   padding: 2rem;
   cursor: pointer;
   transition: all 0.3s ease;
-  text-align: center;
+  text-align: left;
 }
 
 .restaurantCard:hover {
   border-color: #3b82f6;
-  transform: translateY(-2px);
-  box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.1);
+  transform: translateY(-4px);
+  box-shadow: 0 10px 25px rgba(59, 130, 246, 0.15);
 }
 
 .restaurantCardContent {
@@ -204,7 +151,8 @@
 }
 
 .restaurantIcon {
-  font-size: 2.5rem;
+  font-size: 3rem;
+  margin-bottom: 0.5rem;
 }
 
 .restaurantName {
@@ -212,6 +160,7 @@
   font-weight: 600;
   color: #1e293b;
   margin: 0;
+  text-align: center;
 }
 
 .restaurantCardArrow {
@@ -230,21 +179,24 @@
 .restaurantHeader {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  background: white;
-  padding: 2rem;
-  border-radius: 12px;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
 }
 
-.restaurantInfo h2 {
-  font-size: 1.5rem;
+.restaurantInfo {
+  flex: 1;
+}
+
+.restaurantTitle {
+  font-size: 2rem;
   font-weight: 700;
   color: #1e293b;
-  margin: 0 0 0.25rem 0;
+  margin: 0 0 0.5rem 0;
 }
 
 .restaurantSubtitle {
+  font-size: 1.125rem;
   color: #64748b;
   margin: 0;
 }
@@ -252,6 +204,7 @@
 .restaurantActions {
   display: flex;
   gap: 1rem;
+  flex-wrap: wrap;
 }
 
 .changeRestaurantButton,
@@ -260,9 +213,9 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1.5rem;
-  border-radius: 8px;
-  font-weight: 600;
+  border-radius: 0.5rem;
   font-size: 0.875rem;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
   border: none;
@@ -271,44 +224,47 @@
 .changeRestaurantButton {
   background: #f1f5f9;
   color: #475569;
-  border: 1px solid #cbd5e1;
+  border: 1px solid #e2e8f0;
 }
 
 .changeRestaurantButton:hover {
   background: #e2e8f0;
-  color: #334155;
-}
-
-.addItemButton {
-  background: #3b82f6;
-  color: white;
-}
-
-.addItemButton:hover {
-  background: #2563eb;
   transform: translateY(-1px);
 }
 
-.buttonIcon {
-  width: 16px;
-  height: 16px;
+.addItemButton {
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  color: white;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
 }
 
-/* Form Styles */
+.addItemButton:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.5);
+}
+
+.buttonIcon {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* Form Card */
 .formCard {
   background: white;
-  border-radius: 16px;
+  border-radius: 1rem;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   overflow: hidden;
+  border: 1px solid #e2e8f0;
 }
 
 .formHeader {
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  padding: 1.5rem 2rem;
+  border-bottom: 1px solid #e2e8f0;
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  padding: 2rem;
-  border-bottom: 1px solid #e2e8f0;
-  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  gap: 1rem;
 }
 
 .formHeaderLeft {
@@ -323,6 +279,7 @@
 }
 
 .formSubtitle {
+  font-size: 1rem;
   color: #64748b;
   margin: 0;
 }
@@ -331,24 +288,27 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.5rem;
+  padding: 0.5rem 1rem;
   background: #fee2e2;
   border: 1px solid #fecaca;
-  border-radius: 6px;
+  border-radius: 0.5rem;
   color: #dc2626;
+  font-size: 0.875rem;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .cancelButton:hover {
   background: #fecaca;
-  transform: scale(1.05);
+  transform: translateY(-1px);
 }
 
 .formContent {
   padding: 2rem;
 }
 
+/* Form Sections */
 .formSection {
   margin-bottom: 2rem;
 }
@@ -358,7 +318,7 @@
 }
 
 .sectionTitle {
-  font-size: 1.125rem;
+  font-size: 1.25rem;
   font-weight: 600;
   color: #1e293b;
   margin: 0 0 1rem 0;
@@ -371,13 +331,34 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
 }
 
+.addComponentButton {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 0.5rem;
+  color: #0369a1;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.addComponentButton:hover {
+  background: #e0f2fe;
+  transform: translateY(-1px);
+}
+
+/* Basic Info */
 .basicInfo {
   display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 1.5rem;
+  grid-template-columns: 1fr 200px;
+  gap: 1rem;
 }
 
 .formGroup {
@@ -387,17 +368,18 @@
 }
 
 .label {
-  font-weight: 500;
-  color: #374151;
   font-size: 0.875rem;
+  font-weight: 600;
+  color: #374151;
 }
 
 .input {
   padding: 0.75rem;
   border: 1px solid #d1d5db;
-  border-radius: 6px;
+  border-radius: 0.5rem;
   font-size: 0.875rem;
   transition: all 0.2s ease;
+  background: white;
 }
 
 .input:focus {
@@ -406,33 +388,13 @@
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-/* Component Styles */
-.addComponentButton {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  border-radius: 6px;
-  color: #2563eb;
-  font-weight: 500;
-  font-size: 0.875rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.addComponentButton:hover {
-  background: #dbeafe;
-  transform: translateY(-1px);
-}
-
+/* Components */
 .emptyComponents {
   text-align: center;
   padding: 3rem;
   background: #f8fafc;
   border: 2px dashed #cbd5e1;
-  border-radius: 12px;
+  border-radius: 1rem;
 }
 
 .emptyIcon {
@@ -443,12 +405,12 @@
 .emptyText {
   font-size: 1.125rem;
   font-weight: 600;
-  color: #374151;
+  color: #475569;
   margin: 0 0 0.5rem 0;
 }
 
 .emptySubtext {
-  color: #6b7280;
+  color: #64748b;
   margin: 0;
 }
 
@@ -461,23 +423,21 @@
 .componentCard {
   background: #f8fafc;
   border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  overflow: hidden;
+  border-radius: 0.75rem;
+  padding: 1.5rem;
   transition: all 0.2s ease;
 }
 
 .componentCard:hover {
-  border-color: #cbd5e1;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .componentHeader {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  padding: 1rem 1.5rem;
-  background: white;
-  border-bottom: 1px solid #e2e8f0;
+  align-items: center;
+  margin-bottom: 1rem;
+  gap: 1rem;
 }
 
 .componentHeaderLeft {
@@ -488,33 +448,31 @@
 }
 
 .componentNumber {
+  background: #3b82f6;
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 1rem;
   font-size: 0.75rem;
   font-weight: 600;
-  color: #3b82f6;
-  background: #eff6ff;
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
   white-space: nowrap;
 }
 
 .componentNameInput {
   flex: 1;
   font-weight: 500;
-  font-size: 1rem;
 }
 
 .removeComponentButton {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
   background: #fee2e2;
   border: 1px solid #fecaca;
-  border-radius: 6px;
+  border-radius: 0.375rem;
+  padding: 0.5rem;
   color: #dc2626;
   cursor: pointer;
   transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .removeComponentButton:hover {
@@ -523,14 +481,17 @@
 }
 
 .removeComponentButton svg {
-  width: 16px;
-  height: 16px;
+  width: 1rem;
+  height: 1rem;
 }
 
 .componentContent {
-  padding: 1.5rem;
+  background: white;
+  border-radius: 0.5rem;
+  padding: 1rem;
 }
 
+/* Ingredients */
 .ingredientsHeader {
   display: flex;
   justify-content: space-between;
@@ -541,21 +502,21 @@
 .ingredientsTitle {
   font-size: 1rem;
   font-weight: 600;
-  color: #374151;
+  color: #1e293b;
   margin: 0;
 }
 
 .addIngredientButton {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: 0.375rem;
   padding: 0.375rem 0.75rem;
   background: #f0fdf4;
   border: 1px solid #bbf7d0;
-  border-radius: 6px;
-  color: #15803d;
-  font-weight: 500;
+  border-radius: 0.375rem;
+  color: #166534;
   font-size: 0.75rem;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -568,15 +529,15 @@
 .emptyIngredients {
   text-align: center;
   padding: 2rem;
-  background: white;
-  border: 1px dashed #d1d5db;
-  border-radius: 8px;
+  color: #64748b;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 0.5rem;
 }
 
 .emptyIngredientsText {
-  color: #6b7280;
-  font-style: italic;
   margin: 0;
+  font-size: 0.875rem;
 }
 
 .ingredientsList {
@@ -587,26 +548,28 @@
 
 .ingredientRow {
   display: flex;
-  align-items: center;
   gap: 0.75rem;
-  padding: 1rem;
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
+  align-items: flex-start;
+  padding: 0.75rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
   transition: all 0.2s ease;
 }
 
 .ingredientRow:hover {
-  border-color: #d1d5db;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+  background: #f1f5f9;
+  border-color: #cbd5e1;
 }
 
 .ingredientFields {
   display: flex;
   gap: 0.75rem;
   flex: 1;
+  align-items: flex-start;
 }
 
+/* Ingredient Search */
 .ingredientSearch {
   position: relative;
   flex: 2;
@@ -614,9 +577,9 @@
 
 .ingredientInput {
   width: 100%;
-  padding: 0.5rem 0.75rem;
+  padding: 0.5rem;
   border: 1px solid #d1d5db;
-  border-radius: 6px;
+  border-radius: 0.375rem;
   font-size: 0.875rem;
 }
 
@@ -628,81 +591,144 @@
   background: white;
   border: 1px solid #d1d5db;
   border-top: none;
-  border-radius: 0 0 6px 6px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  z-index: 10;
+  border-radius: 0 0 0.375rem 0.375rem;
   max-height: 200px;
   overflow-y: auto;
+  z-index: 10;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
 
 .searchResult {
+  padding: 0.75rem;
+  cursor: pointer;
+  border-bottom: 1px solid #f3f4f6;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.5rem 0.75rem;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
 }
 
 .searchResult:hover {
   background: #f3f4f6;
 }
 
+.searchResult:last-child {
+  border-bottom: none;
+}
+
 .ingredientName {
   font-weight: 500;
-  color: #374151;
+  color: #1e293b;
+}
+
+.ingredientUnit {
+  color: #64748b;
+  font-size: 0.75rem;
 }
 
 .ingredientPrice {
-  font-size: 0.75rem;
   color: #059669;
-  font-weight: 500;
-  margin-left: 0.5rem;
-  background: #ecfdf5;
-  padding: 0.125rem 0.375rem;
-  border-radius: 4px;
+  font-weight: 600;
+  font-size: 0.75rem;
 }
 
 .quantityInput {
-  flex: 1;
-  padding: 0.5rem 0.75rem;
+  width: 80px;
+  padding: 0.5rem;
   border: 1px solid #d1d5db;
-  border-radius: 6px;
+  border-radius: 0.375rem;
   font-size: 0.875rem;
   text-align: center;
 }
 
-.removeIngredientButton {
+/* Unit Search */
+.unitSearch {
+  position: relative;
+  width: 100px;
+}
+
+.unitInput {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+}
+
+.unitResults {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid #d1d5db;
+  border-top: none;
+  border-radius: 0 0 0.375rem 0.375rem;
+  max-height: 150px;
+  overflow-y: auto;
+  z-index: 10;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.unitResult {
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  border-bottom: 1px solid #f3f4f6;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.unitResult:hover,
+.unitResult.highlighted {
+  background: #f3f4f6;
+}
+
+.unitResult:last-child {
+  border-bottom: none;
+}
+
+.unitName {
+  font-weight: 500;
+  color: #1e293b;
+  font-size: 0.875rem;
+}
+
+.unitDescription {
+  color: #64748b;
+  font-size: 0.75rem;
+}
+
+.removeIngredientButton {
   background: #fee2e2;
   border: 1px solid #fecaca;
-  border-radius: 4px;
+  border-radius: 0.375rem;
+  padding: 0.375rem;
   color: #dc2626;
   cursor: pointer;
   transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
 }
 
 .removeIngredientButton:hover {
   background: #fecaca;
-  transform: scale(1.1);
+  transform: scale(1.05);
 }
 
 .removeIngredientButton svg {
-  width: 12px;
-  height: 12px;
+  width: 0.875rem;
+  height: 0.875rem;
 }
 
+/* Form Actions */
 .formActions {
   display: flex;
   justify-content: flex-end;
   margin-top: 2rem;
   padding-top: 1.5rem;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid #e2e8f0;
 }
 
 .saveButton {
@@ -710,70 +736,73 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 2rem;
-  background: #10b981;
-  border: none;
-  border-radius: 8px;
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
   color: white;
-  font-weight: 600;
+  border: none;
+  border-radius: 0.5rem;
   font-size: 0.875rem;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.4);
 }
 
 .saveButton:hover:not(:disabled) {
-  background: #059669;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(5, 150, 105, 0.5);
 }
 
 .saveButton:disabled {
   opacity: 0.6;
   cursor: not-allowed;
   transform: none;
+  box-shadow: none;
 }
 
 /* Menu Items Table */
 .menuItemsCard {
   background: white;
-  border-radius: 16px;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+  border-radius: 1rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   overflow: hidden;
+  border: 1px solid #e2e8f0;
 }
 
 .cardHeader {
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  padding: 1.5rem 2rem;
+  border-bottom: 1px solid #e2e8f0;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 2rem;
-  border-bottom: 1px solid #e2e8f0;
-  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
 }
 
 .cardTitle {
-  font-size: 1.25rem;
+  font-size: 1.5rem;
   font-weight: 700;
   color: #1e293b;
   margin: 0;
 }
 
 .itemCount {
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: #64748b;
-  background: #e2e8f0;
+  background: #3b82f6;
+  color: white;
   padding: 0.25rem 0.75rem;
-  border-radius: 12px;
+  border-radius: 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
 }
 
+/* Empty State */
 .emptyState {
   text-align: center;
   padding: 4rem 2rem;
 }
 
 .emptyTitle {
-  font-size: 1.25rem;
+  font-size: 1.5rem;
   font-weight: 600;
-  color: #374151;
+  color: #1e293b;
   margin: 1rem 0 0.5rem 0;
 }
 
@@ -782,22 +811,23 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1.5rem;
-  background: #3b82f6;
-  border: none;
-  border-radius: 8px;
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
   color: white;
-  font-weight: 600;
+  border: none;
+  border-radius: 0.5rem;
   font-size: 0.875rem;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
   margin-top: 1rem;
 }
 
 .emptyAction:hover {
-  background: #2563eb;
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
 }
 
+/* Table */
 .menuItemsTable {
   display: flex;
   flex-direction: column;
@@ -805,16 +835,14 @@
 
 .tableHeader {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr;
+  grid-template-columns: 2fr 1fr 120px 120px 120px 140px;
   gap: 1rem;
   padding: 1rem 2rem;
   background: #f8fafc;
   border-bottom: 1px solid #e2e8f0;
   font-weight: 600;
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #6b7280;
+  color: #374151;
+  font-size: 0.875rem;
 }
 
 .headerCell {
@@ -824,10 +852,10 @@
 
 .tableRow {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr;
+  grid-template-columns: 2fr 1fr 120px 120px 120px 140px;
   gap: 1rem;
   padding: 1.5rem 2rem;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid #f3f4f6;
   transition: all 0.2s ease;
 }
 
@@ -847,58 +875,58 @@
 .itemInfo {
   display: flex;
   flex-direction: column;
+  gap: 0.25rem;
 }
 
 .itemName {
   font-weight: 600;
   color: #1e293b;
-  font-size: 0.875rem;
 }
 
 .componentsBadge {
   display: flex;
   align-items: center;
-  gap: 0.375rem;
-  background: #eff6ff;
+  gap: 0.5rem;
+  background: #f0f9ff;
   padding: 0.25rem 0.75rem;
-  border-radius: 12px;
+  border-radius: 1rem;
+  border: 1px solid #bae6fd;
   width: fit-content;
 }
 
 .componentsCount {
-  font-weight: 700;
-  color: #2563eb;
+  font-weight: 600;
+  color: #0369a1;
   font-size: 0.875rem;
 }
 
 .componentsLabel {
+  color: #0369a1;
   font-size: 0.75rem;
-  color: #3b82f6;
-  font-weight: 500;
 }
 
 .price {
   font-weight: 600;
   color: #059669;
-  font-size: 0.875rem;
+  font-size: 1rem;
 }
 
 .cost {
   font-weight: 600;
   color: #dc2626;
-  font-size: 0.875rem;
+  font-size: 1rem;
 }
 
 .margin {
-  font-weight: 700;
-  font-size: 0.875rem;
+  font-weight: 600;
+  font-size: 1rem;
   padding: 0.25rem 0.5rem;
-  border-radius: 4px;
+  border-radius: 0.25rem;
 }
 
 .goodMargin {
-  background: #d1fae5;
-  color: #065f46;
+  background: #dcfce7;
+  color: #166534;
 }
 
 .okMargin {
@@ -908,7 +936,7 @@
 
 .lowMargin {
   background: #fee2e2;
-  color: #991b1b;
+  color: #dc2626;
 }
 
 .actionButtons {
@@ -918,64 +946,71 @@
 
 .editButton,
 .deleteButton {
+  padding: 0.5rem;
+  border-radius: 0.375rem;
+  border: 1px solid;
+  cursor: pointer;
+  transition: all 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  border: 1px solid;
 }
 
 .editButton {
-  background: #eff6ff;
-  border-color: #bfdbfe;
-  color: #2563eb;
+  background: #f0f9ff;
+  border-color: #bae6fd;
+  color: #0369a1;
 }
 
 .editButton:hover {
-  background: #dbeafe;
-  transform: scale(1.05);
+  background: #e0f2fe;
+  transform: translateY(-1px);
 }
 
 .deleteButton {
-  background: #fee2e2;
+  background: #fef2f2;
   border-color: #fecaca;
   color: #dc2626;
 }
 
 .deleteButton:hover {
-  background: #fecaca;
-  transform: scale(1.05);
+  background: #fee2e2;
+  transform: translateY(-1px);
 }
 
 .editButton svg,
 .deleteButton svg {
-  width: 16px;
-  height: 16px;
+  width: 1rem;
+  height: 1rem;
 }
 
 /* Responsive Design */
 @media (max-width: 1024px) {
   .main {
-    padding: 1rem;
+    padding: 1.5rem 1rem;
   }
   
-  .headerContent {
-    padding: 1rem;
+  .restaurantGrid {
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
   }
   
   .restaurantHeader {
     flex-direction: column;
-    gap: 1rem;
-    align-items: flex-start;
+    align-items: stretch;
   }
   
   .restaurantActions {
-    width: 100%;
-    justify-content: flex-end;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 768px) {
+  .headerContent {
+    padding: 0 1rem;
+  }
+  
+  .title {
+    font-size: 1.5rem;
   }
   
   .basicInfo {
@@ -988,36 +1023,21 @@
     gap: 0.5rem;
   }
   
-  .headerCell {
+  .tableHeader {
     display: none;
   }
   
   .tableCell {
-    display: flex;
-    justify-content: space-between;
     padding: 0.5rem 0;
-    border-bottom: 1px solid #f1f5f9;
+    border-bottom: 1px solid #f3f4f6;
+    justify-content: space-between;
   }
   
   .tableCell:before {
     content: attr(data-label);
     font-weight: 600;
-    color: #6b7280;
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-}
-
-@media (max-width: 768px) {
-  .formHeader {
-    flex-direction: column;
-    gap: 1rem;
-    align-items: flex-start;
-  }
-  
-  .restaurantGrid {
-    grid-template-columns: 1fr;
+    color: #374151;
+    margin-right: 1rem;
   }
   
   .ingredientFields {
@@ -1025,25 +1045,79 @@
     gap: 0.5rem;
   }
   
-  .ingredientRow {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.5rem;
+  .ingredientSearch {
+    order: 1;
   }
   
-  .componentsGrid {
+  .quantityInput {
+    order: 2;
+    width: 100%;
+  }
+  
+  .unitSearch {
+    order: 3;
+    width: 100%;
+  }
+  
+  .formHeader {
+    padding: 1rem;
+    flex-direction: column;
     gap: 1rem;
+  }
+  
+  .formContent {
+    padding: 1rem;
   }
   
   .componentHeader {
     flex-direction: column;
-    gap: 1rem;
     align-items: stretch;
+    gap: 0.75rem;
   }
   
   .componentHeaderLeft {
     flex-direction: column;
     gap: 0.5rem;
+  }
+  
+  .ingredientsHeader {
+    flex-direction: column;
     align-items: stretch;
+    gap: 0.75rem;
+  }
+  
+  .cardHeader {
+    padding: 1rem;
+    flex-direction: column;
+    gap: 0.75rem;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 480px) {
+  .main {
+    padding: 1rem 0.5rem;
+  }
+  
+  .restaurantGrid {
+    grid-template-columns: 1fr;
+  }
+  
+  .restaurantActions {
+    flex-direction: column;
+  }
+  
+  .changeRestaurantButton,
+  .addItemButton {
+    justify-content: center;
+  }
+  
+  .ingredientRow {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .removeIngredientButton {
+    align-self: flex-end;
   }
 }

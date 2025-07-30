@@ -24,7 +24,38 @@ export default function MenuItemsManagement() {
   const [filteredIngredients, setFilteredIngredients] = useState([]);
   const [activeSearchComponentIndex, setActiveSearchComponentIndex] = useState(null);
   const [activeSearchIngredientIndex, setActiveSearchIngredientIndex] = useState(null);
+  const [filteredUnits, setFilteredUnits] = useState([]);
+  const [activeUnitComponentIndex, setActiveUnitComponentIndex] = useState(null);
+  const [activeUnitIngredientIndex, setActiveUnitIngredientIndex] = useState(null);
+  const [highlightedUnitIndex, setHighlightedUnitIndex] = useState(-1);
   const [saving, setSaving] = useState(false);
+
+  // Available units for autocomplete
+  const availableUnits = [
+    'g', 'oz', 'lbs', 'kg',                    // Weight
+    'ml', 'fl oz', 'cups', 'tbsp', 'tsp', 'gallons',  // Volume
+    'each', 'pieces', 'cloves'                 // Count
+  ];
+
+  // Helper function to get unit descriptions
+  function getUnitDescription(unit) {
+    const descriptions = {
+      'g': 'grams',
+      'oz': 'ounces', 
+      'lbs': 'pounds',
+      'kg': 'kilograms',
+      'ml': 'milliliters',
+      'fl oz': 'fluid ounces',
+      'cups': 'cups',
+      'tbsp': 'tablespoons',
+      'tsp': 'teaspoons',
+      'gallons': 'gallons',
+      'each': 'each',
+      'pieces': 'pieces',
+      'cloves': 'cloves'
+    };
+    return descriptions[unit] || unit;
+  }
 
   useEffect(() => {
     fetchRestaurants();
@@ -135,6 +166,7 @@ export default function MenuItemsManagement() {
       ingredient_id: null,
       ingredient_search: '',
       quantity: '',
+      unit: '',
       isNew: true
     };
     
@@ -190,6 +222,62 @@ export default function MenuItemsManagement() {
     setFilteredIngredients([]);
     setActiveSearchComponentIndex(null);
     setActiveSearchIngredientIndex(null);
+  }
+
+  function handleUnitSearch(componentIndex, ingredientIndex, searchTerm) {
+    handleIngredientChange(componentIndex, ingredientIndex, 'unit', searchTerm);
+    setActiveUnitComponentIndex(componentIndex);
+    setActiveUnitIngredientIndex(ingredientIndex);
+    
+    if (searchTerm.length > 0) {
+      const filtered = availableUnits.filter(unit =>
+        unit.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+      setFilteredUnits(filtered);
+      setHighlightedUnitIndex(filtered.length > 0 ? 0 : -1);
+    } else {
+      setFilteredUnits([]);
+      setHighlightedUnitIndex(-1);
+    }
+  }
+
+  function selectUnit(componentIndex, ingredientIndex, unit) {
+    handleIngredientChange(componentIndex, ingredientIndex, 'unit', unit);
+    setFilteredUnits([]);
+    setActiveUnitComponentIndex(null);
+    setActiveUnitIngredientIndex(null);
+    setHighlightedUnitIndex(-1);
+  }
+
+  function handleUnitKeyDown(e, componentIndex, ingredientIndex) {
+    if (filteredUnits.length === 0) return;
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setHighlightedUnitIndex(prev => 
+          prev < filteredUnits.length - 1 ? prev + 1 : 0
+        );
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setHighlightedUnitIndex(prev => 
+          prev > 0 ? prev - 1 : filteredUnits.length - 1
+        );
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (highlightedUnitIndex >= 0 && highlightedUnitIndex < filteredUnits.length) {
+          selectUnit(componentIndex, ingredientIndex, filteredUnits[highlightedUnitIndex]);
+        }
+        break;
+      case 'Escape':
+        setFilteredUnits([]);
+        setHighlightedUnitIndex(-1);
+        break;
+      default:
+        break;
+    }
   }
 
   function startAddItem() {
@@ -256,6 +344,10 @@ export default function MenuItemsManagement() {
     setFilteredIngredients([]);
     setActiveSearchComponentIndex(null);
     setActiveSearchIngredientIndex(null);
+    setFilteredUnits([]);
+    setActiveUnitComponentIndex(null);
+    setActiveUnitIngredientIndex(null);
+    setHighlightedUnitIndex(-1);
   }
 
   async function handleSubmit() {
@@ -292,6 +384,11 @@ export default function MenuItemsManagement() {
             return;
           }
 
+          if (!ingredient.unit) {
+            alert('Please enter unit for all ingredients');
+            return;
+          }
+
           // If no ingredient_id but we have a search term, check if ingredient exists first
           if (!ingredient.ingredient_id && ingredient.ingredient_search) {
             console.log(`Checking for existing ingredient: ${ingredient.ingredient_search}`);
@@ -320,7 +417,7 @@ export default function MenuItemsManagement() {
                 .insert({
                   restaurant_id: selectedRestaurant.id,
                   name: ingredient.ingredient_search.trim(),
-                  unit: 'each', // Default unit - can be updated later via invoice processing
+                  unit: ingredient.unit || 'each', // Use the unit from the component ingredient
                   last_price: 0, // Will be updated when invoices are processed
                   last_ordered_at: null
                 })
@@ -501,7 +598,7 @@ export default function MenuItemsManagement() {
         }
       });
 
-      console.log(`Component ${componentId} total cost: ${totalCost}`);
+      console.log(`Component ${componentId} total cost: $${totalCost}`);
 
       await supabase
         .from('menu_item_components')
@@ -804,25 +901,37 @@ export default function MenuItemsManagement() {
                                           className={styles.quantityInput}
                                         />
 
-                                        <select
-                                          value={ingredient.unit || ''}
-                                          onChange={(e) => handleIngredientChange(componentIndex, ingredientIndex, 'unit', e.target.value)}
-                                          className={styles.unitSelect}
-                                        >
-                                          <option value="">Unit</option>
-                                          <option value="g">grams (g)</option>
-                                          <option value="oz">ounces (oz)</option>
-                                          <option value="lbs">pounds (lbs)</option>
-                                          <option value="kg">kilograms (kg)</option>
-                                          <option value="ml">milliliters (ml)</option>
-                                          <option value="fl oz">fluid ounces (fl oz)</option>
-                                          <option value="cups">cups</option>
-                                          <option value="tbsp">tablespoons (tbsp)</option>
-                                          <option value="tsp">teaspoons (tsp)</option>
-                                          <option value="each">each</option>
-                                          <option value="cloves">cloves</option>
-                                          <option value="pieces">pieces</option>
-                                        </select>
+                                        <div className={styles.unitSearch}>
+                                          <input
+                                            type="text"
+                                            value={ingredient.unit || ''}
+                                            onChange={(e) => handleUnitSearch(componentIndex, ingredientIndex, e.target.value)}
+                                            onKeyDown={(e) => handleUnitKeyDown(e, componentIndex, ingredientIndex)}
+                                            placeholder="Unit"
+                                            className={styles.unitInput}
+                                          />
+                                          {filteredUnits.length > 0 && 
+                                           activeUnitComponentIndex === componentIndex && 
+                                           activeUnitIngredientIndex === ingredientIndex && (
+                                            <div className={styles.unitResults}>
+                                              {filteredUnits.map((unit, unitIndex) => (
+                                                <div
+                                                  key={unit}
+                                                  className={`${styles.unitResult} ${
+                                                    unitIndex === highlightedUnitIndex ? styles.highlighted : ''
+                                                  }`}
+                                                  onClick={() => selectUnit(componentIndex, ingredientIndex, unit)}
+                                                  onMouseEnter={() => setHighlightedUnitIndex(unitIndex)}
+                                                >
+                                                  <span className={styles.unitName}>{unit}</span>
+                                                  <span className={styles.unitDescription}>
+                                                    {getUnitDescription(unit)}
+                                                  </span>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          )}
+                                        </div>
                                       </div>
                                       
                                       <button

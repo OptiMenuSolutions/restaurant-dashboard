@@ -150,7 +150,7 @@ export default function InvoiceEditor() {
   function selectIngredient(index, ingredient) {
     handleItemChange(index, 'ingredient_id', ingredient.id);
     handleItemChange(index, 'ingredient_search', ingredient.name);
-    handleItemChange(index, 'unit', ingredient.unit);
+    // Don't auto-populate unit - let user set invoice unit independently
     setFilteredIngredients([]);
     setActiveSearchIndex(null);
   }
