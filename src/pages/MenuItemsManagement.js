@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import supabase from '../supabaseClient';
+import { calculateIngredientCost } from '../utils/unitConversions';
 import styles from './MenuItemsManagement.module.css';
 
 export default function MenuItemsManagement() {
@@ -19,8 +20,10 @@ export default function MenuItemsManagement() {
     name: '',
     price: ''
   });
-  const [menuItemIngredients, setMenuItemIngredients] = useState([]);
+  const [menuItemComponents, setMenuItemComponents] = useState([]);
   const [filteredIngredients, setFilteredIngredients] = useState([]);
+  const [activeSearchComponentIndex, setActiveSearchComponentIndex] = useState(null);
+  const [activeSearchIngredientIndex, setActiveSearchIngredientIndex] = useState(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -55,7 +58,14 @@ export default function MenuItemsManagement() {
     try {
       const { data, error } = await supabase
         .from('menu_items')
-        .select('*')
+        .select(`
+          *,
+          menu_item_components (
+            id,
+            name,
+            cost
+          )
+        `)
         .eq('restaurant_id', selectedRestaurant.id)
         .order('name');
 
@@ -95,7 +105,31 @@ export default function MenuItemsManagement() {
     }));
   }
 
-  function addIngredientRow() {
+  // Component management functions
+  function addComponentRow() {
+    const newComponent = {
+      id: Date.now(),
+      name: '',
+      ingredients: [],
+      isNew: true
+    };
+    setMenuItemComponents(prev => [...prev, newComponent]);
+  }
+
+  function removeComponentRow(index) {
+    setMenuItemComponents(prev => prev.filter((_, i) => i !== index));
+  }
+
+  function handleComponentChange(index, field, value) {
+    setMenuItemComponents(prev => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      return updated;
+    });
+  }
+
+  // Ingredient management functions within components
+  function addIngredientToComponent(componentIndex) {
     const newIngredient = {
       id: Date.now(),
       ingredient_id: null,
@@ -103,23 +137,40 @@ export default function MenuItemsManagement() {
       quantity: '',
       isNew: true
     };
-    setMenuItemIngredients(prev => [...prev, newIngredient]);
-  }
-
-  function removeIngredientRow(index) {
-    setMenuItemIngredients(prev => prev.filter((_, i) => i !== index));
-  }
-
-  function handleIngredientChange(index, field, value) {
-    setMenuItemIngredients(prev => {
+    
+    setMenuItemComponents(prev => {
       const updated = [...prev];
-      updated[index] = { ...updated[index], [field]: value };
+      if (!updated[componentIndex].ingredients) {
+        updated[componentIndex].ingredients = [];
+      }
+      updated[componentIndex].ingredients = [...updated[componentIndex].ingredients, newIngredient];
       return updated;
     });
   }
 
-  function handleIngredientSearch(index, searchTerm) {
-    handleIngredientChange(index, 'ingredient_search', searchTerm);
+  function removeIngredientFromComponent(componentIndex, ingredientIndex) {
+    setMenuItemComponents(prev => {
+      const updated = [...prev];
+      updated[componentIndex].ingredients = updated[componentIndex].ingredients.filter((_, i) => i !== ingredientIndex);
+      return updated;
+    });
+  }
+
+  function handleIngredientChange(componentIndex, ingredientIndex, field, value) {
+    setMenuItemComponents(prev => {
+      const updated = [...prev];
+      updated[componentIndex].ingredients[ingredientIndex] = {
+        ...updated[componentIndex].ingredients[ingredientIndex],
+        [field]: value
+      };
+      return updated;
+    });
+  }
+
+  function handleIngredientSearch(componentIndex, ingredientIndex, searchTerm) {
+    handleIngredientChange(componentIndex, ingredientIndex, 'ingredient_search', searchTerm);
+    setActiveSearchComponentIndex(componentIndex);
+    setActiveSearchIngredientIndex(ingredientIndex);
     
     if (searchTerm.length > 1) {
       const filtered = ingredients.filter(ingredient =>
@@ -128,18 +179,22 @@ export default function MenuItemsManagement() {
       setFilteredIngredients(filtered);
     } else {
       setFilteredIngredients([]);
+      setActiveSearchComponentIndex(null);
+      setActiveSearchIngredientIndex(null);
     }
   }
 
-  function selectIngredient(index, ingredient) {
-    handleIngredientChange(index, 'ingredient_id', ingredient.id);
-    handleIngredientChange(index, 'ingredient_search', ingredient.name);
+  function selectIngredient(componentIndex, ingredientIndex, ingredient) {
+    handleIngredientChange(componentIndex, ingredientIndex, 'ingredient_id', ingredient.id);
+    handleIngredientChange(componentIndex, ingredientIndex, 'ingredient_search', ingredient.name);
     setFilteredIngredients([]);
+    setActiveSearchComponentIndex(null);
+    setActiveSearchIngredientIndex(null);
   }
 
   function startAddItem() {
     setFormData({ name: '', price: '' });
-    setMenuItemIngredients([]);
+    setMenuItemComponents([]);
     setShowAddForm(true);
     setEditingItem(null);
   }
@@ -150,34 +205,43 @@ export default function MenuItemsManagement() {
       price: item.price.toString()
     });
 
-    // Fetch existing ingredients for this menu item
+    // Fetch existing components and their ingredients for this menu item
     try {
-      const { data: existingIngredients, error } = await supabase
-        .from('menu_item_ingredients')
+      const { data: existingComponents, error } = await supabase
+        .from('menu_item_components')
         .select(`
           *,
-          ingredients:ingredient_id (
-            id,
-            name,
-            unit
+          component_ingredients (
+            *,
+            ingredients:ingredient_id (
+              id,
+              name,
+              unit
+            )
           )
         `)
         .eq('menu_item_id', item.id);
 
       if (error) throw error;
 
-      const formattedIngredients = existingIngredients.map(ing => ({
-        id: ing.id,
-        ingredient_id: ing.ingredient_id,
-        ingredient_search: ing.ingredients?.name || '',
-        quantity: ing.quantity.toString(),
-        isNew: false
+      const formattedComponents = existingComponents.map(comp => ({
+        id: comp.id,
+        name: comp.name,
+        isNew: false,
+        ingredients: comp.component_ingredients.map(ing => ({
+          id: ing.id,
+          ingredient_id: ing.ingredient_id,
+          ingredient_search: ing.ingredients?.name || '',
+          quantity: ing.quantity.toString(),
+          unit: ing.unit || 'each',
+          isNew: false
+        }))
       }));
 
-      setMenuItemIngredients(formattedIngredients);
+      setMenuItemComponents(formattedComponents);
     } catch (error) {
-      console.error('Error fetching menu item ingredients:', error);
-      setMenuItemIngredients([]);
+      console.error('Error fetching menu item components:', error);
+      setMenuItemComponents([]);
     }
 
     setEditingItem(item);
@@ -188,7 +252,10 @@ export default function MenuItemsManagement() {
     setShowAddForm(false);
     setEditingItem(null);
     setFormData({ name: '', price: '' });
-    setMenuItemIngredients([]);
+    setMenuItemComponents([]);
+    setFilteredIngredients([]);
+    setActiveSearchComponentIndex(null);
+    setActiveSearchIngredientIndex(null);
   }
 
   async function handleSubmit() {
@@ -201,44 +268,88 @@ export default function MenuItemsManagement() {
         return;
       }
 
-      if (menuItemIngredients.length === 0) {
-        alert('Please add at least one ingredient');
+      if (menuItemComponents.length === 0) {
+        alert('Please add at least one component');
         return;
       }
 
-      // Create missing ingredients and validate
-      for (let ingredient of menuItemIngredients) {
-        if (!ingredient.quantity) {
-          alert('Please enter quantity for all ingredients');
+      // Validate components
+      for (let component of menuItemComponents) {
+        if (!component.name) {
+          alert('Please name all components');
+          return;
+        }
+        
+        if (!component.ingredients || component.ingredients.length === 0) {
+          alert(`Please add ingredients to the "${component.name}" component`);
           return;
         }
 
-        // If no ingredient_id but we have a search term, create the ingredient
-        if (!ingredient.ingredient_id && ingredient.ingredient_search) {
-          const { data: newIngredient, error: createError } = await supabase
-            .from('ingredients')
-            .insert({
-              restaurant_id: selectedRestaurant.id,
-              name: ingredient.ingredient_search,
-              unit: 'each', // Default unit
-              last_price: 0, // Will be updated when invoices are processed
-              last_ordered_at: null
-            })
-            .select()
-            .single();
-
-          if (createError) {
-            console.error('Failed to create ingredient:', createError);
-            alert('Failed to create ingredient: ' + createError.message);
+        // Create missing ingredients and validate
+        for (let ingredient of component.ingredients) {
+          if (!ingredient.quantity) {
+            alert('Please enter quantity for all ingredients');
             return;
           }
 
-          ingredient.ingredient_id = newIngredient.id;
-        }
+          // If no ingredient_id but we have a search term, check if ingredient exists first
+          if (!ingredient.ingredient_id && ingredient.ingredient_search) {
+            console.log(`Checking for existing ingredient: ${ingredient.ingredient_search}`);
+            
+            // First, check if this ingredient already exists for this restaurant
+            const { data: existingIngredient, error: checkError } = await supabase
+              .from('ingredients')
+              .select('id, name, unit, last_price')
+              .eq('restaurant_id', selectedRestaurant.id)
+              .ilike('name', ingredient.ingredient_search.trim())
+              .single();
 
-        if (!ingredient.ingredient_id || !ingredient.quantity) {
-          alert('Please complete all ingredient fields');
-          return;
+            if (!checkError && existingIngredient) {
+              // Ingredient already exists, use it
+              console.log('Found existing ingredient:', existingIngredient);
+              ingredient.ingredient_id = existingIngredient.id;
+              
+              // Update the search term to match exactly
+              ingredient.ingredient_search = existingIngredient.name;
+            } else if (checkError && checkError.code === 'PGRST116') {
+              // Ingredient doesn't exist, create it
+              console.log(`Creating new ingredient: ${ingredient.ingredient_search}`);
+              
+              const { data: newIngredient, error: createError } = await supabase
+                .from('ingredients')
+                .insert({
+                  restaurant_id: selectedRestaurant.id,
+                  name: ingredient.ingredient_search.trim(),
+                  unit: 'each', // Default unit - can be updated later via invoice processing
+                  last_price: 0, // Will be updated when invoices are processed
+                  last_ordered_at: null
+                })
+                .select()
+                .single();
+
+              if (createError) {
+                console.error('Failed to create ingredient:', createError);
+                alert('Failed to create ingredient: ' + createError.message);
+                return;
+              }
+
+              console.log('Created ingredient:', newIngredient);
+              ingredient.ingredient_id = newIngredient.id;
+              
+              // Add to local ingredients array so it shows up in future searches
+              setIngredients(prev => [...prev, newIngredient]);
+            } else {
+              // Some other error occurred
+              console.error('Error checking for existing ingredient:', checkError);
+              alert('Error checking ingredients: ' + checkError.message);
+              return;
+            }
+          }
+
+          if (!ingredient.ingredient_id || !ingredient.quantity) {
+            alert('Please complete all ingredient fields');
+            return;
+          }
         }
       }
 
@@ -246,6 +357,8 @@ export default function MenuItemsManagement() {
 
       if (editingItem) {
         // Update existing menu item
+        console.log('Updating existing menu item:', editingItem.id);
+        
         const { error: updateError } = await supabase
           .from('menu_items')
           .update({
@@ -257,15 +370,18 @@ export default function MenuItemsManagement() {
         if (updateError) throw updateError;
         menuItemId = editingItem.id;
 
-        // Delete existing ingredients
+        // Delete existing components and their ingredients (cascade will handle component_ingredients)
+        console.log('Deleting existing components for menu item:', menuItemId);
         const { error: deleteError } = await supabase
-          .from('menu_item_ingredients')
+          .from('menu_item_components')
           .delete()
           .eq('menu_item_id', editingItem.id);
 
         if (deleteError) throw deleteError;
       } else {
         // Create new menu item
+        console.log('Creating new menu item:', formData.name);
+        
         const { data: newMenuItem, error: insertError } = await supabase
           .from('menu_items')
           .insert({
@@ -279,27 +395,60 @@ export default function MenuItemsManagement() {
 
         if (insertError) throw insertError;
         menuItemId = newMenuItem.id;
+        console.log('Created menu item with ID:', menuItemId);
       }
 
-      // Insert ingredients
-      const ingredientsToInsert = menuItemIngredients.map(ing => ({
-        menu_item_id: menuItemId,
-        ingredient_id: ing.ingredient_id,
-        quantity: parseFloat(ing.quantity)
-      }));
+      // Insert components and their ingredients
+      for (let componentIndex = 0; componentIndex < menuItemComponents.length; componentIndex++) {
+        const component = menuItemComponents[componentIndex];
+        
+        console.log(`Creating component ${componentIndex + 1}: ${component.name}`);
+        
+        // Insert component
+        const { data: newComponent, error: componentError } = await supabase
+          .from('menu_item_components')
+          .insert({
+            menu_item_id: menuItemId,
+            name: component.name,
+            cost: 0 // Will be calculated
+          })
+          .select()
+          .single();
 
-      const { error: ingredientsError } = await supabase
-        .from('menu_item_ingredients')
-        .insert(ingredientsToInsert);
+        if (componentError) {
+          console.error('Component creation error:', componentError);
+          throw componentError;
+        }
 
-      if (ingredientsError) {
-        alert('Failed to save ingredients: ' + ingredientsError.message);
-        return;
+        console.log('Created component with ID:', newComponent.id);
+
+        // Insert ingredients for this component
+        const ingredientsToInsert = component.ingredients.map(ing => ({
+          component_id: newComponent.id,
+          ingredient_id: ing.ingredient_id,
+          quantity: parseFloat(ing.quantity),
+          unit: ing.unit || 'each'
+        }));
+
+        console.log('Inserting component ingredients:', ingredientsToInsert);
+
+        const { error: ingredientsError } = await supabase
+          .from('component_ingredients')
+          .insert(ingredientsToInsert);
+
+        if (ingredientsError) {
+          console.error('Component ingredients creation error:', ingredientsError);
+          throw ingredientsError;
+        }
+
+        // Calculate and update component cost
+        await calculateComponentCost(newComponent.id);
       }
 
       // Calculate and update menu item cost
       await calculateMenuItemCost(menuItemId);
 
+      console.log('Menu item saved successfully');
       alert(editingItem ? 'Menu item updated successfully!' : 'Menu item added successfully!');
       cancelForm();
       fetchMenuItems();
@@ -312,25 +461,72 @@ export default function MenuItemsManagement() {
     }
   }
 
-  async function calculateMenuItemCost(menuItemId) {
+  async function calculateComponentCost(componentId) {
     try {
-      const { data: itemIngredients, error } = await supabase
-        .from('menu_item_ingredients')
+      console.log('Calculating cost for component:', componentId);
+      
+      const { data: componentIngredients, error } = await supabase
+        .from('component_ingredients')
         .select(`
           quantity,
+          unit,
           ingredients:ingredient_id (
-            last_price
+            name,
+            last_price,
+            unit
           )
         `)
-        .eq('menu_item_id', menuItemId);
+        .eq('component_id', componentId);
 
       if (error) throw error;
 
       let totalCost = 0;
-      itemIngredients.forEach(ing => {
+      componentIngredients.forEach(ing => {
+        const recipeQuantity = ing.quantity;
+        const recipeUnit = ing.unit;
         const ingredientCost = ing.ingredients?.last_price || 0;
-        totalCost += ing.quantity * ingredientCost;
+        const invoiceUnit = ing.ingredients?.unit || 'each';
+        const ingredientName = ing.ingredients?.name || '';
+
+        if (ingredientCost > 0) {
+          // Use unit conversion to calculate actual cost
+          const cost = calculateIngredientCost(
+            recipeQuantity,
+            recipeUnit,
+            ingredientCost,
+            invoiceUnit,
+            ingredientName
+          );
+          totalCost += cost;
+        }
       });
+
+      console.log(`Component ${componentId} total cost: ${totalCost}`);
+
+      await supabase
+        .from('menu_item_components')
+        .update({ cost: totalCost })
+        .eq('id', componentId);
+
+    } catch (error) {
+      console.error('Error calculating component cost:', error);
+    }
+  }
+
+  async function calculateMenuItemCost(menuItemId) {
+    try {
+      console.log('Calculating cost for menu item:', menuItemId);
+      
+      const { data: components, error } = await supabase
+        .from('menu_item_components')
+        .select('cost')
+        .eq('menu_item_id', menuItemId);
+
+      if (error) throw error;
+
+      const totalCost = components.reduce((sum, comp) => sum + (comp.cost || 0), 0);
+      
+      console.log(`Menu item ${menuItemId} total cost: $${totalCost}`);
 
       await supabase
         .from('menu_items')
@@ -346,11 +542,9 @@ export default function MenuItemsManagement() {
     if (!window.confirm(`Are you sure you want to delete "${item.name}"?`)) return;
 
     try {
-      await supabase
-        .from('menu_item_ingredients')
-        .delete()
-        .eq('menu_item_id', item.id);
-
+      console.log('Deleting menu item:', item.id);
+      
+      // Components and their ingredients will be deleted by cascade
       const { error } = await supabase
         .from('menu_items')
         .delete()
@@ -358,6 +552,7 @@ export default function MenuItemsManagement() {
 
       if (error) throw error;
 
+      console.log('Menu item deleted successfully');
       alert('Menu item deleted successfully!');
       fetchMenuItems();
     } catch (error) {
@@ -427,7 +622,7 @@ export default function MenuItemsManagement() {
             <div className={styles.restaurantHeader}>
               <div className={styles.restaurantInfo}>
                 <h2 className={styles.restaurantTitle}>{selectedRestaurant.name}</h2>
-                <p className={styles.restaurantSubtitle}>Manage menu items and recipes</p>
+                <p className={styles.restaurantSubtitle}>Manage menu items and their components</p>
               </div>
               <div className={styles.restaurantActions}>
                 <button 
@@ -460,7 +655,7 @@ export default function MenuItemsManagement() {
                       {editingItem ? '✏️ Edit Menu Item' : '✨ Add New Menu Item'}
                     </h3>
                     <p className={styles.formSubtitle}>
-                      {editingItem ? 'Update the details and ingredients' : 'Create a new menu item with its recipe'}
+                      {editingItem ? 'Update the details and components' : 'Create a new menu item with its components'}
                     </p>
                   </div>
                   <button className={styles.cancelButton} onClick={cancelForm}>
@@ -504,80 +699,145 @@ export default function MenuItemsManagement() {
                     </div>
                   </div>
 
-                  {/* Ingredients Section */}
+                  {/* Components Section */}
                   <div className={styles.formSection}>
                     <div className={styles.sectionHeader}>
-                      <h4 className={styles.sectionTitle}>🥬 Recipe Ingredients</h4>
-                      <button className={styles.addIngredientButton} onClick={addIngredientRow}>
+                      <h4 className={styles.sectionTitle}>🧩 Menu Item Components</h4>
+                      <button className={styles.addComponentButton} onClick={addComponentRow}>
                         <svg className={styles.buttonIcon} viewBox="0 0 20 20" fill="currentColor">
                           <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
                         </svg>
-                        Add Ingredient
+                        Add Component
                       </button>
                     </div>
 
-                    {menuItemIngredients.length === 0 ? (
-                      <div className={styles.emptyIngredients}>
-                        <div className={styles.emptyIcon}>🍽️</div>
-                        <p className={styles.emptyText}>No ingredients added yet</p>
-                        <p className={styles.emptySubtext}>Click "Add Ingredient" to start building your recipe</p>
+                    {menuItemComponents.length === 0 ? (
+                      <div className={styles.emptyComponents}>
+                        <div className={styles.emptyIcon}>🧩</div>
+                        <p className={styles.emptyText}>No components added yet</p>
+                        <p className={styles.emptySubtext}>Click "Add Component" to start building your menu item</p>
                       </div>
                     ) : (
-                      <div className={styles.ingredientsGrid}>
-                        {menuItemIngredients.map((ingredient, index) => (
-                          <div key={ingredient.id} className={styles.ingredientCard}>
-                            <div className={styles.ingredientHeader}>
-                              <span className={styles.ingredientNumber}>#{index + 1}</span>
+                      <div className={styles.componentsGrid}>
+                        {menuItemComponents.map((component, componentIndex) => (
+                          <div key={component.id} className={styles.componentCard}>
+                            <div className={styles.componentHeader}>
+                              <div className={styles.componentHeaderLeft}>
+                                <span className={styles.componentNumber}>Component #{componentIndex + 1}</span>
+                                <input
+                                  type="text"
+                                  value={component.name}
+                                  onChange={(e) => handleComponentChange(componentIndex, 'name', e.target.value)}
+                                  placeholder="e.g., Caesar Dressing, Grilled Chicken..."
+                                  className={`${styles.input} ${styles.componentNameInput}`}
+                                />
+                              </div>
                               <button
-                                className={styles.removeIngredientButton}
-                                onClick={() => removeIngredientRow(index)}
-                                title="Remove ingredient"
+                                className={styles.removeComponentButton}
+                                onClick={() => removeComponentRow(componentIndex)}
+                                title="Remove component"
                               >
                                 <svg viewBox="0 0 20 20" fill="currentColor">
                                   <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
                                 </svg>
                               </button>
                             </div>
-                            
-                            <div className={styles.ingredientContent}>
-                              <div className={styles.formGroup}>
-                                <label className={styles.label}>Ingredient</label>
-                                <div className={styles.ingredientSearch}>
-                                  <input
-                                    type="text"
-                                    value={ingredient.ingredient_search}
-                                    onChange={(e) => handleIngredientSearch(index, e.target.value)}
-                                    placeholder="Search or type ingredient name..."
-                                    className={styles.input}
-                                  />
-                                  {filteredIngredients.length > 0 && (
-                                    <div className={styles.searchResults}>
-                                      {filteredIngredients.map(ing => (
-                                        <div
-                                          key={ing.id}
-                                          className={styles.searchResult}
-                                          onClick={() => selectIngredient(index, ing)}
-                                        >
-                                          <span className={styles.ingredientName}>{ing.name}</span>
-                                          <span className={styles.ingredientUnit}>({ing.unit})</span>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
+
+                            <div className={styles.componentContent}>
+                              <div className={styles.ingredientsHeader}>
+                                <h5 className={styles.ingredientsTitle}>🥬 Ingredients</h5>
+                                <button 
+                                  className={styles.addIngredientButton}
+                                  onClick={() => addIngredientToComponent(componentIndex)}
+                                >
+                                  <svg className={styles.buttonIcon} viewBox="0 0 16 16" fill="currentColor">
+                                    <path fillRule="evenodd" d="M8 2a1 1 0 011 1v4h4a1 1 0 110 2H9v4a1 1 0 11-2 0V9H3a1 1 0 110-2h4V3a1 1 0 011-1z" clipRule="evenodd" />
+                                  </svg>
+                                  Add Ingredient
+                                </button>
+                              </div>
+
+                              {(!component.ingredients || component.ingredients.length === 0) ? (
+                                <div className={styles.emptyIngredients}>
+                                  <p className={styles.emptyIngredientsText}>No ingredients added</p>
                                 </div>
-                              </div>
-                              
-                              <div className={styles.formGroup}>
-                                <label className={styles.label}>Quantity</label>
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  value={ingredient.quantity}
-                                  onChange={(e) => handleIngredientChange(index, 'quantity', e.target.value)}
-                                  placeholder="0"
-                                  className={styles.input}
-                                />
-                              </div>
+                              ) : (
+                                <div className={styles.ingredientsList}>
+                                  {component.ingredients.map((ingredient, ingredientIndex) => (
+                                    <div key={ingredient.id} className={styles.ingredientRow}>
+                                      <div className={styles.ingredientFields}>
+                                        <div className={styles.ingredientSearch}>
+                                          <input
+                                            type="text"
+                                            value={ingredient.ingredient_search}
+                                            onChange={(e) => handleIngredientSearch(componentIndex, ingredientIndex, e.target.value)}
+                                            placeholder="Search or type ingredient name..."
+                                            className={styles.ingredientInput}
+                                          />
+                                          {filteredIngredients.length > 0 && 
+                                           activeSearchComponentIndex === componentIndex && 
+                                           activeSearchIngredientIndex === ingredientIndex && (
+                                            <div className={styles.searchResults}>
+                                              {filteredIngredients.map(ing => (
+                                                <div
+                                                  key={ing.id}
+                                                  className={styles.searchResult}
+                                                  onClick={() => selectIngredient(componentIndex, ingredientIndex, ing)}
+                                                >
+                                                  <span className={styles.ingredientName}>{ing.name}</span>
+                                                  <span className={styles.ingredientUnit}>({ing.unit})</span>
+                                                  <span className={styles.ingredientPrice}>
+                                                    ${ing.last_price?.toFixed(2) || '0.00'}
+                                                  </span>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          )}
+                                        </div>
+                                        
+                                        <input
+                                          type="number"
+                                          step="0.01"
+                                          value={ingredient.quantity}
+                                          onChange={(e) => handleIngredientChange(componentIndex, ingredientIndex, 'quantity', e.target.value)}
+                                          placeholder="Qty"
+                                          className={styles.quantityInput}
+                                        />
+
+                                        <select
+                                          value={ingredient.unit || ''}
+                                          onChange={(e) => handleIngredientChange(componentIndex, ingredientIndex, 'unit', e.target.value)}
+                                          className={styles.unitSelect}
+                                        >
+                                          <option value="">Unit</option>
+                                          <option value="g">grams (g)</option>
+                                          <option value="oz">ounces (oz)</option>
+                                          <option value="lbs">pounds (lbs)</option>
+                                          <option value="kg">kilograms (kg)</option>
+                                          <option value="ml">milliliters (ml)</option>
+                                          <option value="fl oz">fluid ounces (fl oz)</option>
+                                          <option value="cups">cups</option>
+                                          <option value="tbsp">tablespoons (tbsp)</option>
+                                          <option value="tsp">teaspoons (tsp)</option>
+                                          <option value="each">each</option>
+                                          <option value="cloves">cloves</option>
+                                          <option value="pieces">pieces</option>
+                                        </select>
+                                      </div>
+                                      
+                                      <button
+                                        className={styles.removeIngredientButton}
+                                        onClick={() => removeIngredientFromComponent(componentIndex, ingredientIndex)}
+                                        title="Remove ingredient"
+                                      >
+                                        <svg viewBox="0 0 16 16" fill="currentColor">
+                                          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L8 6.586l2.293-2.293a1 1 0 111.414 1.414L9.414 8l2.293 2.293a1 1 0 01-1.414 1.414L8 9.414l-2.293 2.293a1 1 0 01-1.414-1.414L6.586 8 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                        </svg>
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           </div>
                         ))}
@@ -630,6 +890,7 @@ export default function MenuItemsManagement() {
                 <div className={styles.menuItemsTable}>
                   <div className={styles.tableHeader}>
                     <div className={styles.headerCell}>Name</div>
+                    <div className={styles.headerCell}>Components</div>
                     <div className={styles.headerCell}>Price</div>
                     <div className={styles.headerCell}>Cost</div>
                     <div className={styles.headerCell}>Margin</div>
@@ -638,12 +899,21 @@ export default function MenuItemsManagement() {
                   
                   {menuItems.map(item => {
                     const margin = item.price > 0 ? ((item.price - item.cost) / item.price * 100) : 0;
+                    const componentCount = item.menu_item_components?.length || 0;
                     
                     return (
                       <div key={item.id} className={styles.tableRow}>
                         <div className={styles.tableCell}>
                           <div className={styles.itemInfo}>
                             <span className={styles.itemName}>{item.name}</span>
+                          </div>
+                        </div>
+                        <div className={styles.tableCell}>
+                          <div className={styles.componentsBadge}>
+                            <span className={styles.componentsCount}>{componentCount}</span>
+                            <span className={styles.componentsLabel}>
+                              {componentCount === 1 ? 'component' : 'components'}
+                            </span>
                           </div>
                         </div>
                         <div className={styles.tableCell}>

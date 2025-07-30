@@ -253,20 +253,33 @@ export default function InvoiceEditor() {
         return;
       }
 
-      // NEW APPROACH: Collect all menu items that will be affected BEFORE updating prices
+      // UPDATED APPROACH: Collect all menu items that will be affected BEFORE updating prices
       const affectedMenuItems = new Map();
       
       for (const item of invoiceItems) {
         if (item.ingredient_id && item.unit_cost > 0) {
-          // Get all menu items that use this ingredient
-          const { data: menuItemsUsingIngredient, error } = await supabase
-            .from('menu_item_ingredients')
-            .select('menu_item_id, menu_items!inner(id, name, cost, restaurant_id)')
+          // Get all menu items that use this ingredient through components
+          const { data: componentsUsingIngredient, error } = await supabase
+            .from('component_ingredients')
+            .select(`
+              quantity,
+              component_id,
+              menu_item_components!inner(
+                id,
+                menu_item_id,
+                menu_items!inner(
+                  id,
+                  name,
+                  cost,
+                  restaurant_id
+                )
+              )
+            `)
             .eq('ingredient_id', item.ingredient_id);
 
-          if (!error && menuItemsUsingIngredient) {
-            menuItemsUsingIngredient.forEach(record => {
-              const menuItem = record.menu_items;
+          if (!error && componentsUsingIngredient) {
+            componentsUsingIngredient.forEach(record => {
+              const menuItem = record.menu_item_components.menu_items;
               if (!affectedMenuItems.has(menuItem.id)) {
                 affectedMenuItems.set(menuItem.id, {
                   id: menuItem.id,
@@ -293,41 +306,58 @@ export default function InvoiceEditor() {
         }
       }
 
-      // Now manually create cost history entries for affected menu items
+      // Now recalculate costs for affected menu items using component structure
       for (const [menuItemId, menuItemInfo] of affectedMenuItems) {
-        // Calculate new cost after all ingredient price updates
-        const { data: itemIngredients, error } = await supabase
-          .from('menu_item_ingredients')
+        // Get all components for this menu item
+        const { data: components, error: componentsError } = await supabase
+          .from('menu_item_components')
           .select(`
-            quantity,
-            ingredients:ingredient_id (
-              last_price
+            id,
+            component_ingredients (
+              quantity,
+              ingredients:ingredient_id (
+                last_price
+              )
             )
           `)
           .eq('menu_item_id', menuItemId);
 
-        if (!error && itemIngredients) {
-          let newCost = 0;
-          itemIngredients.forEach(ing => {
-            const ingredientCost = ing.ingredients?.last_price || 0;
-            newCost += ing.quantity * ingredientCost;
-          });
+        if (!componentsError && components) {
+          let newMenuItemCost = 0;
+
+          // Calculate cost for each component
+          for (const component of components) {
+            let componentCost = 0;
+            
+            component.component_ingredients.forEach(ing => {
+              const ingredientCost = ing.ingredients?.last_price || 0;
+              componentCost += ing.quantity * ingredientCost;
+            });
+
+            // Update component cost
+            await supabase
+              .from('menu_item_components')
+              .update({ cost: componentCost })
+              .eq('id', component.id);
+
+            newMenuItemCost += componentCost;
+          }
 
           // Update menu item cost
           await supabase
             .from('menu_items')
-            .update({ cost: newCost })
+            .update({ cost: newMenuItemCost })
             .eq('id', menuItemId);
 
           // Only log if cost actually changed
-          if (menuItemInfo.oldCost !== newCost) {
+          if (menuItemInfo.oldCost !== newMenuItemCost) {
             await supabase
               .from('menu_item_cost_history')
               .insert({
                 menu_item_id: menuItemId,
                 menu_item_name: menuItemInfo.name,
                 old_cost: menuItemInfo.oldCost,
-                new_cost: newCost,
+                new_cost: newMenuItemCost,
                 change_reason: 'invoice_saved',
                 restaurant_id: menuItemInfo.restaurant_id
               });
@@ -335,7 +365,7 @@ export default function InvoiceEditor() {
         }
       }
 
-      alert('Invoice saved successfully!');
+      alert('Invoice saved successfully! Menu item costs have been updated.');
       navigate('/admin/pending-invoices');
 
     } catch (error) {
@@ -465,29 +495,29 @@ export default function InvoiceEditor() {
           {/* Invoice Items Section */}
           <div className={styles.section}>
             <div className={styles.sectionHeader}>
-              <h2 className={styles.sectionTitle}>Invoice Items</h2>
+              <h2 className={styles.sectionTitle}>Invoice Line Items</h2>
               <button 
                 className={styles.addButton}
                 onClick={addInvoiceItem}
               >
-                + Add Item
+                + Add Line Item
               </button>
             </div>
             
             {invoiceItems.length === 0 ? (
               <div className={styles.emptyItems}>
-                <p className={styles.emptyText}>No items added yet</p>
-                <p className={styles.emptySubtext}>Click "Add Item" to start adding invoice items</p>
+                <p className={styles.emptyText}>No line items added yet</p>
+                <p className={styles.emptySubtext}>Add line items from the invoice to match with ingredients</p>
               </div>
             ) : (
               <div className={styles.itemsTable}>
                 <div className={styles.tableHeader}>
-                  <div className={styles.headerCell}>Item Name</div>
+                  <div className={styles.headerCell}>Line Item Description</div>
+                  <div className={styles.headerCell}>Total Cost ($)</div>
                   <div className={styles.headerCell}>Quantity</div>
                   <div className={styles.headerCell}>Unit</div>
-                  <div className={styles.headerCell}>Amount ($)</div>
                   <div className={styles.headerCell}>Unit Cost</div>
-                  <div className={styles.headerCell}>Ingredient Link</div>
+                  <div className={styles.headerCell}>Match to Ingredient</div>
                   <div className={styles.headerCell}>Action</div>
                 </div>
                 
@@ -498,7 +528,18 @@ export default function InvoiceEditor() {
                         type="text"
                         value={item.item_name}
                         onChange={(e) => handleItemChange(index, 'item_name', e.target.value)}
-                        placeholder="e.g., Grilled Chicken"
+                        placeholder="e.g., Fresh Chicken Breast"
+                        className={styles.tableInput}
+                      />
+                    </div>
+                    
+                    <div className={styles.tableCell}>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={item.amount}
+                        onChange={(e) => handleItemChange(index, 'amount', e.target.value)}
+                        placeholder="0.00"
                         className={styles.tableInput}
                       />
                     </div>
@@ -519,18 +560,7 @@ export default function InvoiceEditor() {
                         type="text"
                         value={item.unit}
                         onChange={(e) => handleItemChange(index, 'unit', e.target.value)}
-                        placeholder="each, lbs, oz"
-                        className={styles.tableInput}
-                      />
-                    </div>
-                    
-                    <div className={styles.tableCell}>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={item.amount}
-                        onChange={(e) => handleItemChange(index, 'amount', e.target.value)}
-                        placeholder="0.00"
+                        placeholder="lbs, oz, each"
                         className={styles.tableInput}
                       />
                     </div>
@@ -545,7 +575,7 @@ export default function InvoiceEditor() {
                           type="text"
                           value={item.ingredient_search || ''}
                           onChange={(e) => handleIngredientSearch(index, e.target.value)}
-                          placeholder="Search ingredients..."
+                          placeholder="Search existing ingredients..."
                           className={styles.tableInput}
                         />
                         
@@ -559,6 +589,9 @@ export default function InvoiceEditor() {
                               >
                                 <span className={styles.ingredientName}>{ingredient.name}</span>
                                 <span className={styles.ingredientUnit}>({ingredient.unit})</span>
+                                <span className={styles.currentPrice}>
+                                  Current: ${ingredient.last_price?.toFixed(2) || '0.00'}
+                                </span>
                               </div>
                             ))}
                           </div>
