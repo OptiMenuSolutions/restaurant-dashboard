@@ -1,4 +1,5 @@
 // File: src/utils/unitConversions.js
+// This is the original unit conversions file - keep it for backward compatibility
 
 // Base unit conversions to grams (for weight) and milliliters (for volume)
 const WEIGHT_CONVERSIONS = {

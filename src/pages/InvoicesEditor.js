@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import supabase from '../supabaseClient';
+import { standardizeInvoiceItem, calculateStandardizedCost } from '../utils/standardizedUnits';
 import styles from './InvoiceEditor.module.css';
 
 export default function InvoiceEditor() {
@@ -147,7 +148,7 @@ export default function InvoiceEditor() {
   function selectIngredient(index, ingredient) {
     handleItemChange(index, 'ingredient_id', ingredient.id);
     handleItemChange(index, 'ingredient_search', ingredient.name);
-    handleItemChange(index, 'unit', ingredient.unit);
+    // Don't auto-populate unit - let user set invoice unit independently
     setFilteredIngredients([]);
   }
 
@@ -155,7 +156,6 @@ export default function InvoiceEditor() {
     try {
       setSaving(true);
 
-      // Validate required fields
       if (!invoiceDetails.number || !invoiceDetails.date || !invoiceDetails.supplier || !invoiceDetails.amount) {
         alert('Please fill in all invoice details');
         return;
@@ -177,52 +177,261 @@ export default function InvoiceEditor() {
         })
         .eq('id', id);
 
-      if (invoiceUpdateError) throw invoiceUpdateError;
+      if (invoiceUpdateError) {
+        alert('Failed to update invoice: ' + invoiceUpdateError.message);
+        return;
+      }
 
-      // Delete existing invoice items and insert new ones
+      // STANDARDIZATION PROCESS: Convert all invoice items to standard units
+      console.log('🔄 Starting ingredient standardization process...');
+      
+      const processedItems = [];
+      const affectedMenuItems = new Map();
+
+      for (const item of invoiceItems) {
+        if (!item.item_name || !item.unit || !item.quantity || !item.amount) {
+          alert(`Please complete all fields for item: ${item.item_name || 'Unnamed item'}`);
+          return;
+        }
+
+        console.log(`\n📦 Processing: ${item.item_name}`);
+        
+        // Standardize the invoice item
+        const standardized = standardizeInvoiceItem(
+          item.item_name,
+          parseFloat(item.amount),
+          parseFloat(item.quantity),
+          item.unit
+        );
+
+        if (!standardized.success) {
+          console.warn(`Warning: Could not standardize "${item.item_name}": ${standardized.error}`);
+          // Continue with original units instead of failing
+          const fallbackStandardized = {
+            standardCost: parseFloat(item.amount) / parseFloat(item.quantity),
+            standardUnit: item.unit,
+            success: true
+          };
+          standardized.standardCost = fallbackStandardized.standardCost;
+          standardized.standardUnit = fallbackStandardized.standardUnit;
+          standardized.success = true;
+        }
+
+        // Check if ingredient already exists
+        let ingredientId = item.ingredient_id;
+        
+        if (!ingredientId) {
+          // Look for existing ingredient with same name
+          const { data: existingIngredient, error: checkError } = await supabase
+            .from('ingredients')
+            .select('id, name, unit, last_price')
+            .eq('restaurant_id', restaurant.id)
+            .ilike('name', item.item_name.trim())
+            .single();
+
+          if (!checkError && existingIngredient) {
+            ingredientId = existingIngredient.id;
+            console.log(`✅ Found existing ingredient: ${existingIngredient.name}`);
+            
+          } else if (checkError && checkError.code === 'PGRST116') {
+            // Create new ingredient with standardized unit
+            console.log(`🆕 Creating new ingredient: ${item.item_name}`);
+            
+            const { data: newIngredient, error: createError } = await supabase
+              .from('ingredients')
+              .insert({
+                restaurant_id: restaurant.id,
+                name: item.item_name.trim(),
+                unit: standardized.standardUnit, // Use standardized unit
+                last_price: standardized.standardCost, // Use standardized cost
+                last_ordered_at: invoiceDetails.date
+              })
+              .select()
+              .single();
+
+            if (createError) {
+              alert('Failed to create ingredient: ' + createError.message);
+              return;
+            }
+
+            ingredientId = newIngredient.id;
+            console.log(`✅ Created ingredient with standardized unit: ${standardized.standardUnit}`);
+          } else {
+            alert('Error checking ingredients: ' + checkError.message);
+            return;
+          }
+        }
+
+        // Collect affected menu items BEFORE updating prices
+        const { data: componentsUsingIngredient, error: componentsError } = await supabase
+          .from('component_ingredients')
+          .select(`
+            quantity,
+            unit,
+            component_id,
+            menu_item_components!inner(
+              id,
+              menu_item_id,
+              menu_items!inner(
+                id,
+                name,
+                cost,
+                restaurant_id
+              )
+            )
+          `)
+          .eq('ingredient_id', ingredientId);
+
+        if (!componentsError && componentsUsingIngredient) {
+          componentsUsingIngredient.forEach(record => {
+            const menuItem = record.menu_item_components.menu_items;
+            if (!affectedMenuItems.has(menuItem.id)) {
+              affectedMenuItems.set(menuItem.id, {
+                id: menuItem.id,
+                name: menuItem.name,
+                oldCost: menuItem.cost,
+                restaurant_id: menuItem.restaurant_id
+              });
+            }
+          });
+        }
+
+        // Update ingredient with standardized data
+        await supabase
+          .from('ingredients')
+          .update({
+            unit: standardized.standardUnit,           // Ensure unit is standardized
+            last_price: standardized.standardCost,     // Use standardized cost per standard unit
+            last_ordered_at: invoiceDetails.date
+          })
+          .eq('id', ingredientId);
+
+        console.log(`✅ Updated ingredient: ${item.item_name} → $${standardized.standardCost.toFixed(4)}/${standardized.standardUnit}`);
+        
+        processedItems.push({
+          ...item,
+          ingredient_id: ingredientId,
+          standardized
+        });
+      }
+
+      // Delete existing invoice items
       const { error: deleteError } = await supabase
         .from('invoice_items')
         .delete()
         .eq('invoice_id', id);
 
-      if (deleteError) throw deleteError;
+      if (deleteError) {
+        alert('Failed to delete old items: ' + deleteError.message);
+        return;
+      }
 
-      // Insert new invoice items
-      const itemsToInsert = invoiceItems.map(item => ({
+      // Insert new invoice items (keep original invoice data for records)
+      const itemsToInsert = processedItems.map(item => ({
         invoice_id: id,
-        item_name: item.item_name,
-        quantity: parseFloat(item.quantity),
-        unit: item.unit,
-        amount: parseFloat(item.amount),
-        unit_cost: parseFloat(item.unit_cost),
-        ingredient_id: item.ingredient_id
+        item_name: item.item_name || '',
+        quantity: parseFloat(item.quantity) || 0,
+        unit: item.unit || '', // Keep original invoice unit for records
+        amount: parseFloat(item.amount) || 0,
+        unit_cost: parseFloat(item.unit_cost) || 0, // Keep original unit cost for records
+        ingredient_id: item.ingredient_id || null
       }));
 
       const { error: insertError } = await supabase
         .from('invoice_items')
         .insert(itemsToInsert);
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        alert('Failed to insert items: ' + insertError.message);
+        return;
+      }
 
-      // Update ingredient prices
-      for (const item of invoiceItems) {
-        if (item.ingredient_id && item.unit_cost > 0) {
+      // Recalculate costs for affected menu items using standardized units
+      console.log('\n🔄 Recalculating menu item costs...');
+
+      for (const [menuItemId, menuItemInfo] of affectedMenuItems) {
+        const { data: components, error: componentsError } = await supabase
+          .from('menu_item_components')
+          .select(`
+            id,
+            component_ingredients (
+              quantity,
+              unit,
+              ingredients:ingredient_id (
+                name,
+                last_price,
+                unit
+              )
+            )
+          `)
+          .eq('menu_item_id', menuItemId);
+
+        if (!componentsError && components) {
+          let newMenuItemCost = 0;
+
+          for (const component of components) {
+            let componentCost = 0;
+            
+            component.component_ingredients.forEach(ing => {
+              const ingredientCost = ing.ingredients?.last_price || 0;
+              const ingredientName = ing.ingredients?.name || '';
+
+              if (ingredientCost > 0) {
+                // Use the new standardized cost calculation
+                try {
+                  const cost = calculateStandardizedCost(
+                    ing.quantity,
+                    ing.unit,
+                    ingredientCost,
+                    ingredientName
+                  );
+                  componentCost += cost;
+                  
+                  console.log(`  ${ingredientName}: ${ing.quantity} ${ing.unit} = $${cost.toFixed(4)}`);
+                } catch (error) {
+                  console.warn(`Cost calculation failed for ${ingredientName}:`, error);
+                  // Fallback to simple multiplication
+                  componentCost += ing.quantity * ingredientCost;
+                }
+              }
+            });
+
+            await supabase
+              .from('menu_item_components')
+              .update({ cost: componentCost })
+              .eq('id', component.id);
+
+            newMenuItemCost += componentCost;
+          }
+
           await supabase
-            .from('ingredients')
-            .update({
-              last_price: item.unit_cost,
-              last_ordered_at: invoiceDetails.date
-            })
-            .eq('id', item.ingredient_id);
+            .from('menu_items')
+            .update({ cost: newMenuItemCost })
+            .eq('id', menuItemId);
+
+          if (Math.abs(menuItemInfo.oldCost - newMenuItemCost) > 0.01) { // Only log if change > 1 cent
+            await supabase
+              .from('menu_item_cost_history')
+              .insert({
+                menu_item_id: menuItemId,
+                menu_item_name: menuItemInfo.name,
+                old_cost: menuItemInfo.oldCost,
+                new_cost: newMenuItemCost,
+                change_reason: 'invoice_saved',
+                restaurant_id: menuItemInfo.restaurant_id
+              });
+
+            console.log(`📊 ${menuItemInfo.name}: $${menuItemInfo.oldCost.toFixed(4)} → $${newMenuItemCost.toFixed(4)}`);
+          }
         }
       }
 
-      alert('Invoice saved successfully!');
+      alert('Invoice saved successfully! All ingredients have been standardized and menu item costs updated.');
       navigate('/admin/pending-invoices');
 
     } catch (error) {
-      console.error('Error saving invoice:', error);
-      alert('Failed to save invoice');
+      console.error('Unexpected error during save:', error);
+      alert('Unexpected error: ' + error.message);
     } finally {
       setSaving(false);
     }
@@ -372,7 +581,7 @@ export default function InvoiceEditor() {
                       type="text"
                       value={item.unit}
                       onChange={(e) => handleItemChange(index, 'unit', e.target.value)}
-                      placeholder="lbs, oz, etc"
+                      placeholder="lbs, oz, gallons, etc"
                     />
                   </div>
                   

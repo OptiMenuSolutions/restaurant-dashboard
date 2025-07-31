@@ -2,7 +2,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import supabase from '../supabaseClient';
-import { calculateIngredientCost } from '../utils/unitConversions';
+import { 
+  calculateStandardizedCost, 
+  getUnitSuggestions, 
+  validateUnit,
+  getStandardUnitForUnit,
+  getUnitCategory 
+} from '../utils/standardizedUnits';
 import styles from './MenuItemsManagement.module.css';
 
 export default function MenuItemsManagement() {
@@ -24,38 +30,11 @@ export default function MenuItemsManagement() {
   const [filteredIngredients, setFilteredIngredients] = useState([]);
   const [activeSearchComponentIndex, setActiveSearchComponentIndex] = useState(null);
   const [activeSearchIngredientIndex, setActiveSearchIngredientIndex] = useState(null);
-  const [filteredUnits, setFilteredUnits] = useState([]);
+  const [unitSuggestions, setUnitSuggestions] = useState([]);
   const [activeUnitComponentIndex, setActiveUnitComponentIndex] = useState(null);
   const [activeUnitIngredientIndex, setActiveUnitIngredientIndex] = useState(null);
   const [highlightedUnitIndex, setHighlightedUnitIndex] = useState(-1);
   const [saving, setSaving] = useState(false);
-
-  // Available units for autocomplete
-  const availableUnits = [
-    'g', 'oz', 'lbs', 'kg',                    // Weight
-    'ml', 'fl oz', 'cups', 'tbsp', 'tsp', 'gallons',  // Volume
-    'each', 'pieces', 'cloves'                 // Count
-  ];
-
-  // Helper function to get unit descriptions
-  function getUnitDescription(unit) {
-    const descriptions = {
-      'g': 'grams',
-      'oz': 'ounces', 
-      'lbs': 'pounds',
-      'kg': 'kilograms',
-      'ml': 'milliliters',
-      'fl oz': 'fluid ounces',
-      'cups': 'cups',
-      'tbsp': 'tablespoons',
-      'tsp': 'teaspoons',
-      'gallons': 'gallons',
-      'each': 'each',
-      'pieces': 'pieces',
-      'cloves': 'cloves'
-    };
-    return descriptions[unit] || unit;
-  }
 
   useEffect(() => {
     fetchRestaurants();
@@ -230,49 +209,48 @@ export default function MenuItemsManagement() {
     setActiveUnitIngredientIndex(ingredientIndex);
     
     if (searchTerm.length > 0) {
-      const filtered = availableUnits.filter(unit =>
-        unit.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-      setFilteredUnits(filtered);
-      setHighlightedUnitIndex(filtered.length > 0 ? 0 : -1);
+      const suggestions = getUnitSuggestions(searchTerm, 8);
+      setUnitSuggestions(suggestions);
+      setHighlightedUnitIndex(suggestions.length > 0 ? 0 : -1);
     } else {
-      setFilteredUnits([]);
+      setUnitSuggestions([]);
       setHighlightedUnitIndex(-1);
     }
   }
 
-  function selectUnit(componentIndex, ingredientIndex, unit) {
+  function selectUnit(componentIndex, ingredientIndex, unitData) {
+    const unit = typeof unitData === 'string' ? unitData : unitData.unit;
     handleIngredientChange(componentIndex, ingredientIndex, 'unit', unit);
-    setFilteredUnits([]);
+    setUnitSuggestions([]);
     setActiveUnitComponentIndex(null);
     setActiveUnitIngredientIndex(null);
     setHighlightedUnitIndex(-1);
   }
 
   function handleUnitKeyDown(e, componentIndex, ingredientIndex) {
-    if (filteredUnits.length === 0) return;
+    if (unitSuggestions.length === 0) return;
 
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault();
         setHighlightedUnitIndex(prev => 
-          prev < filteredUnits.length - 1 ? prev + 1 : 0
+          prev < unitSuggestions.length - 1 ? prev + 1 : 0
         );
         break;
       case 'ArrowUp':
         e.preventDefault();
         setHighlightedUnitIndex(prev => 
-          prev > 0 ? prev - 1 : filteredUnits.length - 1
+          prev > 0 ? prev - 1 : unitSuggestions.length - 1
         );
         break;
       case 'Enter':
         e.preventDefault();
-        if (highlightedUnitIndex >= 0 && highlightedUnitIndex < filteredUnits.length) {
-          selectUnit(componentIndex, ingredientIndex, filteredUnits[highlightedUnitIndex]);
+        if (highlightedUnitIndex >= 0 && highlightedUnitIndex < unitSuggestions.length) {
+          selectUnit(componentIndex, ingredientIndex, unitSuggestions[highlightedUnitIndex]);
         }
         break;
       case 'Escape':
-        setFilteredUnits([]);
+        setUnitSuggestions([]);
         setHighlightedUnitIndex(-1);
         break;
       default:
@@ -344,7 +322,7 @@ export default function MenuItemsManagement() {
     setFilteredIngredients([]);
     setActiveSearchComponentIndex(null);
     setActiveSearchIngredientIndex(null);
-    setFilteredUnits([]);
+    setUnitSuggestions([]);
     setActiveUnitComponentIndex(null);
     setActiveUnitIngredientIndex(null);
     setHighlightedUnitIndex(-1);
@@ -365,7 +343,7 @@ export default function MenuItemsManagement() {
         return;
       }
 
-      // Validate components
+      // Validate components and units
       for (let component of menuItemComponents) {
         if (!component.name) {
           alert('Please name all components');
@@ -377,7 +355,7 @@ export default function MenuItemsManagement() {
           return;
         }
 
-        // Create missing ingredients and validate
+        // Validate ingredients and their units
         for (let ingredient of component.ingredients) {
           if (!ingredient.quantity) {
             alert('Please enter quantity for all ingredients');
@@ -386,6 +364,13 @@ export default function MenuItemsManagement() {
 
           if (!ingredient.unit) {
             alert('Please enter unit for all ingredients');
+            return;
+          }
+
+          // Validate that the unit is supported
+          const unitValidation = validateUnit(ingredient.unit);
+          if (!unitValidation.valid) {
+            alert(`Invalid unit "${ingredient.unit}" for ingredient. ${unitValidation.message}`);
             return;
           }
 
@@ -409,17 +394,27 @@ export default function MenuItemsManagement() {
               // Update the search term to match exactly
               ingredient.ingredient_search = existingIngredient.name;
             } else if (checkError && checkError.code === 'PGRST116') {
-              // Ingredient doesn't exist, create it
+              // Ingredient doesn't exist, create it with standardized unit
               console.log(`Creating new ingredient: ${ingredient.ingredient_search}`);
-              
+
+              // Determine what standard unit this ingredient should use based on the recipe unit
+              const standardUnit = getStandardUnitForUnit(ingredient.unit);
+              const category = getUnitCategory(ingredient.unit);
+
+              console.log(`Creating ingredient with standard unit: ${standardUnit} (category: ${category})`);
+
               const { data: newIngredient, error: createError } = await supabase
                 .from('ingredients')
                 .insert({
                   restaurant_id: selectedRestaurant.id,
                   name: ingredient.ingredient_search.trim(),
-                  unit: ingredient.unit || 'each', // Use the unit from the component ingredient
+                  unit: standardUnit, // Store in standard unit
                   last_price: 0, // Will be updated when invoices are processed
-                  last_ordered_at: null
+                  last_ordered_at: null,
+                  // Standardization metadata
+                  standard_unit: standardUnit,
+                  ingredient_category: category,
+                  original_unit: ingredient.unit // Keep track of what user originally entered
                 })
                 .select()
                 .single();
@@ -524,7 +519,7 @@ export default function MenuItemsManagement() {
           component_id: newComponent.id,
           ingredient_id: ing.ingredient_id,
           quantity: parseFloat(ing.quantity),
-          unit: ing.unit || 'each'
+          unit: ing.unit || 'each' // Keep the recipe unit as entered
         }));
 
         console.log('Inserting component ingredients:', ingredientsToInsert);
@@ -582,23 +577,22 @@ export default function MenuItemsManagement() {
         const recipeQuantity = ing.quantity;
         const recipeUnit = ing.unit;
         const ingredientCost = ing.ingredients?.last_price || 0;
-        const invoiceUnit = ing.ingredients?.unit || 'each';
         const ingredientName = ing.ingredients?.name || '';
 
         if (ingredientCost > 0) {
-          // Use unit conversion to calculate actual cost
-          const cost = calculateIngredientCost(
+          // Use the new standardized cost calculation
+          const cost = calculateStandardizedCost(
             recipeQuantity,
             recipeUnit,
-            ingredientCost,
-            invoiceUnit,
-            ingredientName
+            ingredientCost // This is now cost per standard unit
           );
           totalCost += cost;
+          
+          console.log(`${ingredientName}: ${recipeQuantity} ${recipeUnit} = $${cost.toFixed(4)}`);
         }
       });
 
-      console.log(`Component ${componentId} total cost: $${totalCost}`);
+      console.log(`Component ${componentId} total cost: $${totalCost.toFixed(4)}`);
 
       await supabase
         .from('menu_item_components')
@@ -623,7 +617,7 @@ export default function MenuItemsManagement() {
 
       const totalCost = components.reduce((sum, comp) => sum + (comp.cost || 0), 0);
       
-      console.log(`Menu item ${menuItemId} total cost: $${totalCost}`);
+      console.log(`Menu item ${menuItemId} total cost: $${totalCost.toFixed(4)}`);
 
       await supabase
         .from('menu_items')
@@ -907,25 +901,28 @@ export default function MenuItemsManagement() {
                                             value={ingredient.unit || ''}
                                             onChange={(e) => handleUnitSearch(componentIndex, ingredientIndex, e.target.value)}
                                             onKeyDown={(e) => handleUnitKeyDown(e, componentIndex, ingredientIndex)}
-                                            placeholder="Unit"
+                                            placeholder="Unit (e.g., tbsp, oz, cups)"
                                             className={styles.unitInput}
                                           />
-                                          {filteredUnits.length > 0 && 
+                                          {unitSuggestions.length > 0 && 
                                            activeUnitComponentIndex === componentIndex && 
                                            activeUnitIngredientIndex === ingredientIndex && (
                                             <div className={styles.unitResults}>
-                                              {filteredUnits.map((unit, unitIndex) => (
+                                              {unitSuggestions.map((suggestion, unitIndex) => (
                                                 <div
-                                                  key={unit}
+                                                  key={suggestion.unit}
                                                   className={`${styles.unitResult} ${
                                                     unitIndex === highlightedUnitIndex ? styles.highlighted : ''
                                                   }`}
-                                                  onClick={() => selectUnit(componentIndex, ingredientIndex, unit)}
+                                                  onClick={() => selectUnit(componentIndex, ingredientIndex, suggestion)}
                                                   onMouseEnter={() => setHighlightedUnitIndex(unitIndex)}
                                                 >
-                                                  <span className={styles.unitName}>{unit}</span>
+                                                  <span className={styles.unitName}>{suggestion.unit}</span>
                                                   <span className={styles.unitDescription}>
-                                                    {getUnitDescription(unit)}
+                                                    {suggestion.description}
+                                                  </span>
+                                                  <span className={styles.unitCategory}>
+                                                    → {suggestion.standardUnit}
                                                   </span>
                                                 </div>
                                               ))}
