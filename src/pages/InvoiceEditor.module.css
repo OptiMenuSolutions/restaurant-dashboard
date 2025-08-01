@@ -48,11 +48,6 @@
   transform: translateX(-2px);
 }
 
-.backIcon {
-  width: 16px;
-  height: 16px;
-}
-
 .title {
   font-size: 1.5rem;
   font-weight: 700;
@@ -88,50 +83,23 @@
   transform: none;
 }
 
-.buttonIcon {
-  width: 16px;
-  height: 16px;
-}
-
-/* Loading & Error States */
-.loadingContainer,
-.errorContainer {
+/* Loading States */
+.loading,
+.error {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
   min-height: 60vh;
-  gap: 1rem;
-}
-
-.spinner {
-  width: 40px;
-  height: 40px;
-  border: 3px solid #e2e8f0;
-  border-top: 3px solid #3b82f6;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.loadingText {
-  color: #64748b;
-  font-size: 1rem;
+  font-size: 1.125rem;
   font-weight: 500;
 }
 
-.errorIcon {
-  font-size: 3rem;
+.loading {
+  color: #64748b;
 }
 
-.errorText {
+.error {
   color: #dc2626;
-  font-size: 1.25rem;
-  font-weight: 600;
 }
 
 /* Main Content Layout */
@@ -179,7 +147,7 @@
   padding: 2rem 2rem 0 2rem;
 }
 
-/* Form Styles */
+/* Form Grid for Invoice Details */
 .formGrid {
   padding: 2rem;
   display: grid;
@@ -193,13 +161,13 @@
   gap: 0.5rem;
 }
 
-.label {
+.formGroup label {
   font-weight: 600;
   color: #374151;
   font-size: 0.875rem;
 }
 
-.input {
+.formGroup input {
   padding: 0.75rem;
   border: 1px solid #d1d5db;
   border-radius: 8px;
@@ -207,12 +175,13 @@
   transition: all 0.2s ease;
 }
 
-.input:focus {
+.formGroup input:focus {
   outline: none;
   border-color: #3b82f6;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
+/* Add Button */
 .addButton {
   display: flex;
   align-items: center;
@@ -233,34 +202,13 @@
   transform: translateY(-1px);
 }
 
-/* Empty States */
-.emptyItems {
-  text-align: center;
-  padding: 4rem 2rem;
-  background: #f8fafc;
-  border-top: 1px solid #e2e8f0;
-}
-
-.emptyText {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: #374151;
-  margin: 0 0 0.5rem 0;
-}
-
-.emptySubtext {
-  color: #6b7280;
-  margin: 0;
-}
-
-/* Table Styles */
+/* Invoice Items Table */
 .itemsTable {
   display: flex;
   flex-direction: column;
-  border-top: 1px solid #e2e8f0;
 }
 
-.tableHeader {
+.itemsHeader {
   display: grid;
   grid-template-columns: 2fr 1fr 1fr 1fr 1fr 2fr 1fr;
   gap: 1rem;
@@ -274,34 +222,30 @@
   color: #6b7280;
 }
 
-.headerCell {
-  display: flex;
-  align-items: center;
-}
-
-.tableRow {
+.itemRow {
   display: grid;
   grid-template-columns: 2fr 1fr 1fr 1fr 1fr 2fr 1fr;
   gap: 1rem;
   padding: 1.5rem 2rem;
   border-bottom: 1px solid #f1f5f9;
   transition: all 0.2s ease;
+  align-items: center;
 }
 
-.tableRow:hover {
+.itemRow:hover {
   background: #f8fafc;
 }
 
-.tableRow:last-child {
+.itemRow:last-child {
   border-bottom: none;
 }
 
-.tableCell {
+.itemCell {
   display: flex;
   align-items: center;
 }
 
-.tableInput {
+.itemCell input {
   width: 100%;
   padding: 0.5rem 0.75rem;
   border: 1px solid #d1d5db;
@@ -310,13 +254,13 @@
   transition: all 0.2s ease;
 }
 
-.tableInput:focus {
+.itemCell input:focus {
   outline: none;
   border-color: #3b82f6;
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
 }
 
-.unitCostValue {
+.unitCost {
   font-weight: 600;
   color: #059669;
   font-size: 0.875rem;
@@ -324,6 +268,8 @@
   background: #ecfdf5;
   border-radius: 6px;
   border: 1px solid #d1fae5;
+  min-width: 80px;
+  text-align: center;
 }
 
 /* Ingredient Search */
@@ -355,6 +301,7 @@
   cursor: pointer;
   transition: background-color 0.2s ease;
   border-bottom: 1px solid #f1f5f9;
+  font-size: 0.875rem;
 }
 
 .searchResult:hover {
@@ -363,28 +310,6 @@
 
 .searchResult:last-child {
   border-bottom: none;
-}
-
-.ingredientName {
-  font-weight: 500;
-  color: #374151;
-  flex: 1;
-}
-
-.ingredientUnit {
-  font-size: 0.75rem;
-  color: #6b7280;
-  margin-left: 0.5rem;
-}
-
-.currentPrice {
-  font-size: 0.75rem;
-  color: #059669;
-  font-weight: 500;
-  margin-left: 0.5rem;
-  background: #ecfdf5;
-  padding: 0.125rem 0.375rem;
-  border-radius: 4px;
 }
 
 .removeButton {
@@ -463,22 +388,8 @@
   align-items: center;
   justify-content: center;
   background: #f8fafc;
-}
-
-.noFileContent {
-  text-align: center;
-}
-
-.noFileIcon {
-  font-size: 3rem;
-  margin-bottom: 1rem;
-  opacity: 0.5;
-}
-
-.noFileText {
   color: #6b7280;
   font-size: 1rem;
-  margin: 0;
 }
 
 /* Responsive Design */
@@ -520,47 +431,33 @@
     gap: 1rem;
   }
   
-  .tableHeader,
-  .tableRow {
+  .itemsHeader,
+  .itemRow {
     grid-template-columns: 1fr;
     gap: 0.5rem;
+    padding: 1rem;
   }
   
-  .headerCell {
+  .itemsHeader {
     display: none;
   }
   
-  .tableCell {
-    display: flex;
-    justify-content: space-between;
+  .itemCell {
+    display: grid;
+    grid-template-columns: 100px 1fr;
+    gap: 0.5rem;
     padding: 0.5rem 0;
     border-bottom: 1px solid #f1f5f9;
+    align-items: center;
   }
   
-  .tableCell:before {
+  .itemCell:before {
     content: attr(data-label);
     font-weight: 600;
     color: #6b7280;
     font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    min-width: 120px;
-  }
-  
-  .tableInput {
-    max-width: 200px;
-  }
-  
-  .searchResults {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 90%;
-    max-width: 400px;
-    max-height: 300px;
-    border-radius: 8px;
-    border: 1px solid #d1d5db;
   }
   
   .fileContainer {
@@ -568,7 +465,6 @@
   }
 }
 
-/* Enhanced Mobile Styles for Better UX */
 @media (max-width: 480px) {
   .headerContent {
     padding: 0.75rem;
@@ -588,7 +484,7 @@
     padding: 1rem;
   }
   
-  .tableRow {
+  .itemRow {
     padding: 1rem;
   }
   

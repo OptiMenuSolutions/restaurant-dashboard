@@ -6,7 +6,8 @@ import Ingredients from './pages/Ingredients';
 import MenuItems from './pages/MenuItems';
 import IngredientDetail from './pages/IngredientDetail';
 import InvoiceDetail from './pages/InvoiceDetail';
-import MenuItemDetail from './pages/MenuItemDetail'; // ADD THIS IMPORT
+import MenuItemDetail from './pages/MenuItemDetail';
+import MenuItemCostBreakdown from './pages/MenuItemCostBreakdown'; // NEW IMPORT
 import Signup from './pages/Signup';
 import Login from './pages/Login';
 import AdminLogin from './pages/AdminLogin';
@@ -40,6 +41,7 @@ function App() {
           <Route path="/admin/pending-invoices" element={<PendingInvoices />} />
           <Route path="/admin/invoice-editor/:id" element={<InvoiceEditor />} />
           <Route path="/admin/menu-items" element={<MenuItemsManagement />} />
+          <Route path="/admin/menu-item-cost-breakdown/:id" element={<MenuItemCostBreakdown />} /> {/* NEW ROUTE */}
 
           {/* Protected client routes */}
           <Route
@@ -90,7 +92,6 @@ function App() {
               </ProtectedRoute>
             }
           />
-          {/* ADD THIS NEW ROUTE FOR MENU ITEM DETAIL */}
           <Route
             path="/menu-items/:id"
             element={

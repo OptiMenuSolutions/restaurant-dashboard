@@ -1,5 +1,5 @@
 // File: src/utils/standardizedUnits.js
-// Updated to determine category based on the unit entered, not ingredient name
+// Enhanced unit standardization system with better normalization and error handling
 
 // Standard base units for different categories
 const STANDARD_UNITS = {
@@ -8,118 +8,226 @@ const STANDARD_UNITS = {
   COUNT: 'each',    // each for countable items
 };
 
-// Unit categorization - determines category based on unit type, not ingredient name
+// Comprehensive unit normalization map
+const UNIT_NORMALIZATION = {
+  // Weight variations
+  'g': 'g',
+  'gram': 'g',
+  'grams': 'g',
+  'oz': 'oz',
+  'ounce': 'oz',
+  'ounces': 'oz',
+  'lb': 'lb',
+  'lbs': 'lb',
+  'pound': 'lb',
+  'pounds': 'lb',
+  'kg': 'kg',
+  'kilogram': 'kg',
+  'kilograms': 'kg',
+
+  // Volume variations
+  'ml': 'ml',
+  'milliliter': 'ml',
+  'milliliters': 'ml',
+  'fl oz': 'fl oz',
+  'floz': 'fl oz',
+  'fluid ounce': 'fl oz',
+  'fluid ounces': 'fl oz',
+  'tbsp': 'tbsp',
+  'tablespoon': 'tbsp',
+  'tablespoons': 'tbsp',
+  'tsp': 'tsp',
+  'teaspoon': 'tsp',
+  'teaspoons': 'tsp',
+  'cup': 'cup',
+  'cups': 'cup',
+  'gallon': 'gal',
+  'gallons': 'gal',
+  'gal': 'gal',
+  'liter': 'l',
+  'liters': 'l',
+  'l': 'l',
+  'litre': 'l',
+  'litres': 'l',
+
+  // Count variations
+  'each': 'each',
+  'piece': 'each',
+  'pieces': 'each',
+  'item': 'each',
+  'items': 'each',
+  'whole': 'each',
+
+  // Special variations
+  'clove': 'clove',
+  'cloves': 'clove',
+};
+
+// Unit categorization based on normalized units
 const UNIT_CATEGORIES = {
   // Weight units
   'g': 'weight',
-  'grams': 'weight',
-  'gram': 'weight',
   'oz': 'weight',
-  'ounce': 'weight',
-  'ounces': 'weight',
   'lb': 'weight',
-  'lbs': 'weight',
-  'pound': 'weight',
-  'pounds': 'weight',
   'kg': 'weight',
-  'kilogram': 'weight',
-  'kilograms': 'weight',
 
   // Volume units
   'ml': 'volume',
-  'milliliter': 'volume',
-  'milliliters': 'volume',
   'fl oz': 'volume',
-  'fluid ounce': 'volume',
-  'fluid ounces': 'volume',
   'tbsp': 'volume',
-  'tablespoon': 'volume',
-  'tablespoons': 'volume',
   'tsp': 'volume',
-  'teaspoon': 'volume',
-  'teaspoons': 'volume',
   'cup': 'volume',
-  'cups': 'volume',
-  'gallon': 'volume',
-  'gallons': 'volume',
   'gal': 'volume',
-  'liter': 'volume',
-  'liters': 'volume',
   'l': 'volume',
 
   // Count units
   'each': 'count',
-  'piece': 'count',
-  'pieces': 'count',
-  'item': 'count',
-  'items': 'count',
-  'whole': 'count',
 
   // Special ingredient-specific units
   'clove': 'special',
-  'cloves': 'special',
 };
 
-// Conversion factors to standard units
+// Conversion factors to standard units (using normalized unit names)
 const TO_STANDARD_WEIGHT = {
   'g': 0.035274,        // grams to ounces
-  'grams': 0.035274,
-  'gram': 0.035274,
   'oz': 1,              // ounces (already standard)
-  'ounce': 1,
-  'ounces': 1,
   'lb': 16,             // pounds to ounces
-  'lbs': 16,
-  'pound': 16,
-  'pounds': 16,
   'kg': 35.274,         // kilograms to ounces
-  'kilogram': 35.274,
-  'kilograms': 35.274,
 };
 
 const TO_STANDARD_VOLUME = {
   'ml': 0.033814,       // milliliters to fluid ounces
-  'milliliter': 0.033814,
-  'milliliters': 0.033814,
   'fl oz': 1,           // fluid ounces (already standard)
-  'fluid ounce': 1,
-  'fluid ounces': 1,
   'tbsp': 0.5,          // tablespoons to fluid ounces
-  'tablespoon': 0.5,
-  'tablespoons': 0.5,
   'tsp': 0.166667,      // teaspoons to fluid ounces
-  'teaspoon': 0.166667,
-  'teaspoons': 0.166667,
   'cup': 8,             // cups to fluid ounces
-  'cups': 8,
-  'gallon': 128,        // gallons to fluid ounces
-  'gallons': 128,
-  'gal': 128,
-  'liter': 33.814,      // liters to fluid ounces
-  'liters': 33.814,
-  'l': 33.814,
+  'gal': 128,           // gallons to fluid ounces
+  'l': 33.814,          // liters to fluid ounces
 };
 
 // Special conversions for ingredient-specific units
 const SPECIAL_UNIT_CONVERSIONS = {
   'clove': { standardUnit: 'oz', conversionFactor: 0.1 }, // 1 clove ≈ 0.1 oz
-  'cloves': { standardUnit: 'oz', conversionFactor: 0.1 },
+};
+
+// Ingredient-specific density conversions (volume to weight)
+// These handle cases where recipes use volume but ingredients are purchased by weight
+const INGREDIENT_DENSITY_CONVERSIONS = {
+  // Salt conversions (tsp/tbsp to weight)
+  'salt': {
+    'tsp': { standardUnit: 'oz', conversionFactor: 0.2 }, // 1 tsp salt ≈ 0.2 oz
+    'tbsp': { standardUnit: 'oz', conversionFactor: 0.6 }, // 1 tbsp salt ≈ 0.6 oz
+    'teaspoon': { standardUnit: 'oz', conversionFactor: 0.2 },
+    'tablespoon': { standardUnit: 'oz', conversionFactor: 0.6 },
+    'teaspoons': { standardUnit: 'oz', conversionFactor: 0.2 },
+    'tablespoons': { standardUnit: 'oz', conversionFactor: 0.6 },
+  },
+  
+  // Black pepper conversions (tsp/tbsp to weight)
+  'black pepper': {
+    'tsp': { standardUnit: 'oz', conversionFactor: 0.07 }, // 1 tsp pepper ≈ 0.07 oz
+    'tbsp': { standardUnit: 'oz', conversionFactor: 0.21 }, // 1 tbsp pepper ≈ 0.21 oz
+    'teaspoon': { standardUnit: 'oz', conversionFactor: 0.07 },
+    'tablespoon': { standardUnit: 'oz', conversionFactor: 0.21 },
+    'teaspoons': { standardUnit: 'oz', conversionFactor: 0.07 },
+    'tablespoons': { standardUnit: 'oz', conversionFactor: 0.21 },
+  },
+  
+  // Pepper (generic)
+  'pepper': {
+    'tsp': { standardUnit: 'oz', conversionFactor: 0.07 },
+    'tbsp': { standardUnit: 'oz', conversionFactor: 0.21 },
+    'teaspoon': { standardUnit: 'oz', conversionFactor: 0.07 },
+    'tablespoon': { standardUnit: 'oz', conversionFactor: 0.21 },
+    'teaspoons': { standardUnit: 'oz', conversionFactor: 0.07 },
+    'tablespoons': { standardUnit: 'oz', conversionFactor: 0.21 },
+  },
+  
+  // Add more ingredients as needed
+  'sugar': {
+    'tsp': { standardUnit: 'oz', conversionFactor: 0.15 }, // 1 tsp sugar ≈ 0.15 oz
+    'tbsp': { standardUnit: 'oz', conversionFactor: 0.45 }, // 1 tbsp sugar ≈ 0.45 oz
+    'cup': { standardUnit: 'oz', conversionFactor: 7.0 },   // 1 cup sugar ≈ 7 oz
+    'teaspoon': { standardUnit: 'oz', conversionFactor: 0.15 },
+    'tablespoon': { standardUnit: 'oz', conversionFactor: 0.45 },
+    'cups': { standardUnit: 'oz', conversionFactor: 7.0 },
+  },
+  
+  'flour': {
+    'tsp': { standardUnit: 'oz', conversionFactor: 0.1 },  // 1 tsp flour ≈ 0.1 oz
+    'tbsp': { standardUnit: 'oz', conversionFactor: 0.3 }, // 1 tbsp flour ≈ 0.3 oz
+    'cup': { standardUnit: 'oz', conversionFactor: 4.5 },  // 1 cup flour ≈ 4.5 oz
+    'teaspoon': { standardUnit: 'oz', conversionFactor: 0.1 },
+    'tablespoon': { standardUnit: 'oz', conversionFactor: 0.3 },
+    'cups': { standardUnit: 'oz', conversionFactor: 4.5 },
+  }
 };
 
 /**
+ * Normalize a unit string to its canonical form
+ * @param {string} unit - The unit to normalize
+ * @returns {string} - Normalized unit
+ */
+function normalizeUnit(unit) {
+  if (!unit) return 'each';
+  
+  const cleaned = unit.toLowerCase().trim().replace(/\./g, '');
+  const normalized = UNIT_NORMALIZATION[cleaned];
+  
+  if (!normalized) {
+    console.warn(`⚠️ Unknown unit "${unit}" - using as-is`);
+    return cleaned;
+  }
+  
+  return normalized;
+}
+
+/**
+ * Check for ingredient-specific density conversion
+ * @param {string} ingredientName - Name of the ingredient
+ * @param {string} unit - Unit to convert from
+ * @returns {object|null} - Conversion data or null if no specific conversion exists
+ */
+function getIngredientSpecificConversion(ingredientName, unit) {
+  if (!ingredientName) return null;
+  
+  const normalizedIngredientName = ingredientName.toLowerCase().trim();
+  const normalizedUnit = normalizeUnit(unit);
+  
+  // Check for exact ingredient name match
+  if (INGREDIENT_DENSITY_CONVERSIONS[normalizedIngredientName]) {
+    const ingredientConversions = INGREDIENT_DENSITY_CONVERSIONS[normalizedIngredientName];
+    if (ingredientConversions[normalizedUnit]) {
+      return ingredientConversions[normalizedUnit];
+    }
+  }
+  
+  // Check for partial matches (e.g., "sea salt" matches "salt")
+  for (const [ingredientKey, conversions] of Object.entries(INGREDIENT_DENSITY_CONVERSIONS)) {
+    if (normalizedIngredientName.includes(ingredientKey) || ingredientKey.includes(normalizedIngredientName)) {
+      if (conversions[normalizedUnit]) {
+        console.log(`🔄 Found ingredient-specific conversion for "${ingredientName}" (matched "${ingredientKey}")`);
+        return conversions[normalizedUnit];
+      }
+    }
+  }
+  
+  return null;
+}
+
+/**
  * Determine the category of a unit
- * @param {string} unit - The unit to categorize
  * @returns {string} - 'weight', 'volume', 'count', or 'special'
  */
 export function getUnitCategory(unit) {
-  const normalizedUnit = unit.toLowerCase().trim();
+  const normalizedUnit = normalizeUnit(unit);
   
   if (UNIT_CATEGORIES[normalizedUnit]) {
     return UNIT_CATEGORIES[normalizedUnit];
   }
   
   // Default to weight for unknown units (safest assumption)
-  console.warn(`Unknown unit "${unit}". Defaulting to weight category.`);
+  console.warn(`⚠️ Unknown unit category for "${unit}". Defaulting to weight.`);
   return 'weight';
 }
 
@@ -140,7 +248,7 @@ export function getStandardUnitForUnit(unit) {
       return STANDARD_UNITS.COUNT;
     case 'special':
       // For special units, check the conversion table
-      const normalizedUnit = unit.toLowerCase().trim();
+      const normalizedUnit = normalizeUnit(unit);
       if (SPECIAL_UNIT_CONVERSIONS[normalizedUnit]) {
         return SPECIAL_UNIT_CONVERSIONS[normalizedUnit].standardUnit;
       }
@@ -154,23 +262,52 @@ export function getStandardUnitForUnit(unit) {
  * Convert any unit to its standard unit
  * @param {number} quantity - Quantity to convert
  * @param {string} fromUnit - Unit to convert from
+ * @param {string} ingredientName - Name of ingredient (for density conversions)
  * @returns {object} - { quantity: number, unit: string, success: boolean, category: string }
  */
-export function convertToStandardUnit(quantity, fromUnit) {
-  const category = getUnitCategory(fromUnit);
-  const standardUnit = getStandardUnitForUnit(fromUnit);
-  const normalizedUnit = fromUnit.toLowerCase().trim();
+export function convertToStandardUnit(quantity, fromUnit, ingredientName = '') {
+  const normalizedUnit = normalizeUnit(fromUnit);
   
-  console.log(`Converting ${quantity} ${fromUnit} (category: ${category}) to standard unit (${standardUnit})`);
+  // First check for ingredient-specific density conversions
+  if (ingredientName) {
+    const specificConversion = getIngredientSpecificConversion(ingredientName, normalizedUnit);
+    if (specificConversion) {
+      console.log(`🥄 Using ingredient-specific conversion for ${ingredientName}: ${quantity} ${fromUnit} → ${specificConversion.standardUnit}`);
+      
+      const convertedQuantity = quantity * specificConversion.conversionFactor;
+      
+      console.log(`✅ Ingredient-specific conversion: ${quantity} ${fromUnit} → ${convertedQuantity.toFixed(6)} ${specificConversion.standardUnit}`);
+      
+      return {
+        quantity: convertedQuantity,
+        unit: specificConversion.standardUnit,
+        success: true,
+        category: 'ingredient-specific',
+        conversionFactor: specificConversion.conversionFactor,
+        originalUnit: fromUnit,
+        normalizedUnit,
+        conversionType: 'density'
+      };
+    }
+  }
+  
+  // Continue with normal unit conversion logic
+  const category = getUnitCategory(normalizedUnit);
+  const standardUnit = getStandardUnitForUnit(normalizedUnit);
+  
+  console.log(`🔄 Converting ${quantity} ${fromUnit} → ${normalizedUnit} (category: ${category}) → ${standardUnit}`);
   
   // If already in standard unit, return as-is
-  if (fromUnit === standardUnit) {
+  if (normalizedUnit === standardUnit || fromUnit === standardUnit) {
+    console.log(`✅ Already in standard unit: ${quantity} ${standardUnit}`);
     return { 
       quantity, 
       unit: standardUnit, 
       success: true, 
       category,
-      conversionFactor: 1 
+      conversionFactor: 1,
+      originalUnit: fromUnit,
+      normalizedUnit
     };
   }
   
@@ -184,7 +321,7 @@ export function convertToStandardUnit(quantity, fromUnit) {
           conversionFactor = TO_STANDARD_WEIGHT[normalizedUnit];
           convertedQuantity = quantity * conversionFactor;
         } else {
-          throw new Error(`Unknown weight unit: ${fromUnit}`);
+          throw new Error(`Unknown weight unit: ${normalizedUnit}`);
         }
         break;
         
@@ -193,7 +330,7 @@ export function convertToStandardUnit(quantity, fromUnit) {
           conversionFactor = TO_STANDARD_VOLUME[normalizedUnit];
           convertedQuantity = quantity * conversionFactor;
         } else {
-          throw new Error(`Unknown volume unit: ${fromUnit}`);
+          throw new Error(`Unknown volume unit: ${normalizedUnit}`);
         }
         break;
         
@@ -208,12 +345,12 @@ export function convertToStandardUnit(quantity, fromUnit) {
           conversionFactor = SPECIAL_UNIT_CONVERSIONS[normalizedUnit].conversionFactor;
           convertedQuantity = quantity * conversionFactor;
         } else {
-          throw new Error(`Unknown special unit: ${fromUnit}`);
+          throw new Error(`Unknown special unit: ${normalizedUnit}`);
         }
         break;
         
       default:
-        throw new Error(`Unknown unit category for: ${fromUnit}`);
+        throw new Error(`Unknown unit category for: ${normalizedUnit}`);
     }
     
     console.log(`✅ Converted: ${quantity} ${fromUnit} → ${convertedQuantity.toFixed(6)} ${standardUnit} (factor: ${conversionFactor})`);
@@ -223,7 +360,9 @@ export function convertToStandardUnit(quantity, fromUnit) {
       unit: standardUnit,
       success: true,
       category,
-      conversionFactor
+      conversionFactor,
+      originalUnit: fromUnit,
+      normalizedUnit
     };
     
   } catch (error) {
@@ -233,7 +372,9 @@ export function convertToStandardUnit(quantity, fromUnit) {
       unit: fromUnit,
       success: false,
       category,
-      error: error.message
+      error: error.message,
+      originalUnit: fromUnit,
+      normalizedUnit
     };
   }
 }
@@ -243,22 +384,29 @@ export function convertToStandardUnit(quantity, fromUnit) {
  * @param {number} recipeQuantity - Quantity needed in recipe
  * @param {string} recipeUnit - Unit used in recipe
  * @param {number} ingredientStandardCost - Cost per standard unit from ingredients table
+ * @param {string} ingredientName - Name of ingredient (for debugging and density conversions)
  * @returns {number} - The calculated cost
  */
-export function calculateStandardizedCost(recipeQuantity, recipeUnit, ingredientStandardCost) {
-  console.log(`Calculating cost: ${recipeQuantity} ${recipeUnit} at $${ingredientStandardCost} per standard unit`);
+export function calculateStandardizedCost(recipeQuantity, recipeUnit, ingredientStandardCost, ingredientName = '') {
+  console.log(`\n💰 Calculating cost for ${ingredientName || 'ingredient'}:`);
+  console.log(`Recipe needs: ${recipeQuantity} ${recipeUnit}`);
+  console.log(`Ingredient cost: ${ingredientStandardCost} per standard unit`);
   
-  // Convert recipe quantity to standard unit
-  const conversion = convertToStandardUnit(recipeQuantity, recipeUnit);
+  // Convert recipe quantity to standard unit (pass ingredient name for density conversions)
+  const conversion = convertToStandardUnit(recipeQuantity, recipeUnit, ingredientName);
   
   if (!conversion.success) {
-    console.error(`Cannot calculate cost: ${conversion.error}`);
-    return 0;
+    console.error(`❌ Cannot calculate cost for ${ingredientName}: ${conversion.error}`);
+    console.log(`⚠️ Falling back to simple multiplication: ${recipeQuantity} × ${ingredientStandardCost}`);
+    return recipeQuantity * ingredientStandardCost;
   }
   
   const cost = conversion.quantity * ingredientStandardCost;
   
-  console.log(`Cost calculation: ${conversion.quantity.toFixed(6)} standard units × $${ingredientStandardCost} = $${cost.toFixed(6)}`);
+  console.log(`✅ Cost calculation: ${conversion.quantity.toFixed(6)} ${conversion.unit} × ${ingredientStandardCost} = ${cost.toFixed(6)}`);
+  if (conversion.conversionType === 'density') {
+    console.log(`🥄 Used ingredient-specific density conversion for accurate costing`);
+  }
   
   return cost;
 }
@@ -273,28 +421,38 @@ export function calculateStandardizedCost(recipeQuantity, recipeUnit, ingredient
  */
 export function standardizeInvoiceItem(itemName, totalCost, quantity, unit) {
   console.log(`\n📦 Standardizing invoice item: ${itemName}`);
-  console.log(`Invoice data: ${quantity} ${unit} for $${totalCost}`);
+  console.log(`Invoice data: ${quantity} ${unit} for ${totalCost.toFixed(2)}`);
   
   const unitCost = totalCost / quantity;
-  console.log(`Unit cost: $${unitCost.toFixed(4)} per ${unit}`);
+  console.log(`Unit cost: ${unitCost.toFixed(4)} per ${unit}`);
   
-  // Convert to standard unit
-  const conversion = convertToStandardUnit(quantity, unit);
+  // Convert to standard unit (pass ingredient name for density conversions)
+  const conversion = convertToStandardUnit(quantity, unit, itemName);
   
   if (!conversion.success) {
-    console.error(`❌ Failed to standardize: ${conversion.error}`);
+    console.error(`❌ Failed to standardize ${itemName}: ${conversion.error}`);
+    console.log(`⚠️ Using fallback: storing as ${unitCost.toFixed(4)} per ${unit}`);
+    
     return {
       name: itemName,
-      standardUnit: unit,
-      standardCost: unitCost,
+      standardUnit: unit, // Keep original unit as fallback
+      standardCost: unitCost, // Use original unit cost
       success: false,
-      error: conversion.error
+      error: conversion.error,
+      originalQuantity: quantity,
+      originalUnit: unit,
+      originalUnitCost: unitCost,
+      fallback: true
     };
   }
   
   const standardUnitCost = totalCost / conversion.quantity;
   
-  console.log(`✅ Standardized: $${standardUnitCost.toFixed(4)} per ${conversion.unit}`);
+  console.log(`✅ Standardized: ${standardUnitCost.toFixed(4)} per ${conversion.unit}`);
+  console.log(`Conversion details: ${quantity} ${unit} → ${conversion.quantity.toFixed(6)} ${conversion.unit}`);
+  if (conversion.conversionType === 'density') {
+    console.log(`🥄 Used ingredient-specific density conversion`);
+  }
   
   return {
     name: itemName,
@@ -306,6 +464,7 @@ export function standardizeInvoiceItem(itemName, totalCost, quantity, unit) {
     standardQuantity: conversion.quantity,
     category: conversion.category,
     conversionFactor: conversion.conversionFactor,
+    conversionType: conversion.conversionType,
     success: true
   };
 }
@@ -315,17 +474,17 @@ export function standardizeInvoiceItem(itemName, totalCost, quantity, unit) {
  * @returns {object} - Available units grouped by category
  */
 export function getAvailableInputUnits() {
+  const weightUnits = Object.keys(TO_STANDARD_WEIGHT);
+  const volumeUnits = Object.keys(TO_STANDARD_VOLUME);
+  const countUnits = ['each'];
+  const specialUnits = Object.keys(SPECIAL_UNIT_CONVERSIONS);
+  
   return {
-    weight: Object.keys(TO_STANDARD_WEIGHT),
-    volume: Object.keys(TO_STANDARD_VOLUME),
-    count: ['each', 'piece', 'pieces', 'item', 'items', 'whole'],
-    special: Object.keys(SPECIAL_UNIT_CONVERSIONS),
-    all: [
-      ...Object.keys(TO_STANDARD_WEIGHT),
-      ...Object.keys(TO_STANDARD_VOLUME),
-      'each', 'piece', 'pieces', 'item', 'items', 'whole',
-      ...Object.keys(SPECIAL_UNIT_CONVERSIONS)
-    ]
+    weight: weightUnits,
+    volume: volumeUnits,
+    count: countUnits,
+    special: specialUnits,
+    all: [...weightUnits, ...volumeUnits, ...countUnits, ...specialUnits]
   };
 }
 
@@ -335,17 +494,19 @@ export function getAvailableInputUnits() {
  * @returns {object} - Validation result
  */
 export function validateUnit(unit) {
-  const category = getUnitCategory(unit);
-  const standardUnit = getStandardUnitForUnit(unit);
+  const normalizedUnit = normalizeUnit(unit);
+  const category = getUnitCategory(normalizedUnit);
+  const standardUnit = getStandardUnitForUnit(normalizedUnit);
   const conversion = convertToStandardUnit(1, unit);
   
   return {
     valid: conversion.success,
     category: category,
     standardUnit: standardUnit,
-    supported: UNIT_CATEGORIES[unit.toLowerCase().trim()] !== undefined,
+    normalizedUnit: normalizedUnit,
+    supported: UNIT_CATEGORIES[normalizedUnit] !== undefined,
     message: conversion.success ? 
-      `✅ ${unit} (${category}) converts to ${standardUnit}` : 
+      `✅ ${unit} → ${normalizedUnit} (${category}) converts to ${standardUnit}` : 
       `❌ ${conversion.error}`
   };
 }
@@ -358,17 +519,21 @@ export function validateUnit(unit) {
  */
 export function getUnitSuggestions(partialUnit, maxSuggestions = 10) {
   const searchTerm = partialUnit.toLowerCase().trim();
-  const allUnits = getAvailableInputUnits().all;
+  
+  // Get all possible input variations
+  const allInputUnits = Object.keys(UNIT_NORMALIZATION);
   
   // Find matching units
-  const matches = allUnits
+  const matches = allInputUnits
     .filter(unit => unit.toLowerCase().includes(searchTerm))
     .slice(0, maxSuggestions)
     .map(unit => {
-      const category = getUnitCategory(unit);
-      const standardUnit = getStandardUnitForUnit(unit);
+      const normalizedUnit = normalizeUnit(unit);
+      const category = getUnitCategory(normalizedUnit);
+      const standardUnit = getStandardUnitForUnit(normalizedUnit);
       return {
         unit,
+        normalizedUnit,
         category,
         standardUnit,
         description: getUnitDescription(unit, category)
@@ -392,27 +557,55 @@ function getUnitDescription(unit, category = null) {
   const descriptions = {
     // Weight
     'g': 'grams (weight)',
+    'gram': 'grams (weight)',
+    'grams': 'grams (weight)',
     'oz': 'ounces (weight)',
+    'ounce': 'ounces (weight)',
+    'ounces': 'ounces (weight)',
+    'lb': 'pounds (weight)',
     'lbs': 'pounds (weight)',
+    'pound': 'pounds (weight)',
+    'pounds': 'pounds (weight)',
     'kg': 'kilograms (weight)',
+    'kilogram': 'kilograms (weight)',
+    'kilograms': 'kilograms (weight)',
     
     // Volume
     'ml': 'milliliters (volume)',
+    'milliliter': 'milliliters (volume)',
+    'milliliters': 'milliliters (volume)',
     'fl oz': 'fluid ounces (volume)',
+    'fluid ounce': 'fluid ounces (volume)',
+    'fluid ounces': 'fluid ounces (volume)',
     'tbsp': 'tablespoons (volume)',
+    'tablespoon': 'tablespoons (volume)',
+    'tablespoons': 'tablespoons (volume)',
     'tsp': 'teaspoons (volume)',
+    'teaspoon': 'teaspoons (volume)',
+    'teaspoons': 'teaspoons (volume)',
+    'cup': 'cups (volume)',
     'cups': 'cups (volume)',
+    'gal': 'gallons (volume)',
+    'gallon': 'gallons (volume)',
     'gallons': 'gallons (volume)',
+    'l': 'liters (volume)',
+    'liter': 'liters (volume)',
+    'liters': 'liters (volume)',
     
     // Count
     'each': 'individual items',
+    'piece': 'individual pieces',
     'pieces': 'individual pieces',
+    'item': 'individual items',
+    'items': 'individual items',
+    'whole': 'whole items',
     
     // Special
+    'clove': 'garlic cloves',
     'cloves': 'garlic cloves'
   };
   
-  return descriptions[unit] || `${unit} (${category})`;
+  return descriptions[unit.toLowerCase()] || `${unit} (${category})`;
 }
 
 // Export constants for use in components
@@ -421,5 +614,6 @@ export {
   UNIT_CATEGORIES,
   TO_STANDARD_WEIGHT,
   TO_STANDARD_VOLUME,
-  SPECIAL_UNIT_CONVERSIONS
+  SPECIAL_UNIT_CONVERSIONS,
+  normalizeUnit
 };

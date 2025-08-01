@@ -7,7 +7,8 @@ import {
   getUnitSuggestions, 
   validateUnit,
   getStandardUnitForUnit,
-  getUnitCategory 
+  getUnitCategory,
+  normalizeUnit
 } from '../utils/standardizedUnits';
 import styles from './MenuItemsManagement.module.css';
 
@@ -331,6 +332,7 @@ export default function MenuItemsManagement() {
   async function handleSubmit() {
     try {
       setSaving(true);
+      console.log(`\n🍽️ Saving menu item: ${formData.name}`);
 
       // Validate form
       if (!formData.name || !formData.price) {
@@ -344,7 +346,9 @@ export default function MenuItemsManagement() {
       }
 
       // Validate components and units
-      for (let component of menuItemComponents) {
+      for (let compIndex = 0; compIndex < menuItemComponents.length; compIndex++) {
+        const component = menuItemComponents[compIndex];
+        
         if (!component.name) {
           alert('Please name all components');
           return;
@@ -355,28 +359,34 @@ export default function MenuItemsManagement() {
           return;
         }
 
+        console.log(`🧩 Validating component: ${component.name}`);
+
         // Validate ingredients and their units
-        for (let ingredient of component.ingredients) {
+        for (let ingIndex = 0; ingIndex < component.ingredients.length; ingIndex++) {
+          const ingredient = component.ingredients[ingIndex];
+          
           if (!ingredient.quantity) {
-            alert('Please enter quantity for all ingredients');
+            alert(`Please enter quantity for all ingredients in "${component.name}"`);
             return;
           }
 
           if (!ingredient.unit) {
-            alert('Please enter unit for all ingredients');
+            alert(`Please enter unit for all ingredients in "${component.name}"`);
             return;
           }
 
           // Validate that the unit is supported
           const unitValidation = validateUnit(ingredient.unit);
           if (!unitValidation.valid) {
-            alert(`Invalid unit "${ingredient.unit}" for ingredient. ${unitValidation.message}`);
+            alert(`Invalid unit "${ingredient.unit}" for ingredient in "${component.name}". ${unitValidation.message}\n\nSupported units include: oz, lbs, g, kg, fl oz, cups, tbsp, tsp, gallons, ml, l, each, etc.`);
             return;
           }
 
-          // If no ingredient_id but we have a search term, check if ingredient exists first
+          console.log(`  ✅ ${ingredient.ingredient_search}: ${ingredient.quantity} ${ingredient.unit} (${unitValidation.category})`);
+
+          // Handle ingredient creation/linking
           if (!ingredient.ingredient_id && ingredient.ingredient_search) {
-            console.log(`Checking for existing ingredient: ${ingredient.ingredient_search}`);
+            console.log(`🔍 Checking for existing ingredient: ${ingredient.ingredient_search}`);
             
             // First, check if this ingredient already exists for this restaurant
             const { data: existingIngredient, error: checkError } = await supabase
@@ -384,24 +394,28 @@ export default function MenuItemsManagement() {
               .select('id, name, unit, last_price')
               .eq('restaurant_id', selectedRestaurant.id)
               .ilike('name', ingredient.ingredient_search.trim())
-              .single();
+              .maybeSingle();
 
-            if (!checkError && existingIngredient) {
+            if (checkError) {
+              console.error('Error checking for existing ingredient:', checkError);
+              alert('Error checking ingredients: ' + checkError.message);
+              return;
+            }
+
+            if (existingIngredient) {
               // Ingredient already exists, use it
-              console.log('Found existing ingredient:', existingIngredient);
+              console.log(`✅ Found existing ingredient: ${existingIngredient.name} (${existingIngredient.unit})`);
               ingredient.ingredient_id = existingIngredient.id;
-              
-              // Update the search term to match exactly
               ingredient.ingredient_search = existingIngredient.name;
-            } else if (checkError && checkError.code === 'PGRST116') {
+            } else {
               // Ingredient doesn't exist, create it with standardized unit
-              console.log(`Creating new ingredient: ${ingredient.ingredient_search}`);
+              console.log(`🆕 Creating new ingredient: ${ingredient.ingredient_search}`);
 
               // Determine what standard unit this ingredient should use based on the recipe unit
               const standardUnit = getStandardUnitForUnit(ingredient.unit);
               const category = getUnitCategory(ingredient.unit);
 
-              console.log(`Creating ingredient with standard unit: ${standardUnit} (category: ${category})`);
+              console.log(`   Creating with standard unit: ${standardUnit} (category: ${category})`);
 
               const { data: newIngredient, error: createError } = await supabase
                 .from('ingredients')
@@ -410,36 +424,27 @@ export default function MenuItemsManagement() {
                   name: ingredient.ingredient_search.trim(),
                   unit: standardUnit, // Store in standard unit
                   last_price: 0, // Will be updated when invoices are processed
-                  last_ordered_at: null,
-                  // Standardization metadata
-                  standard_unit: standardUnit,
-                  ingredient_category: category,
-                  original_unit: ingredient.unit // Keep track of what user originally entered
+                  last_ordered_at: null
                 })
                 .select()
                 .single();
 
               if (createError) {
                 console.error('Failed to create ingredient:', createError);
-                alert('Failed to create ingredient: ' + createError.message);
+                alert(`Failed to create ingredient "${ingredient.ingredient_search}": ${createError.message}`);
                 return;
               }
 
-              console.log('Created ingredient:', newIngredient);
+              console.log(`✅ Created ingredient: ${newIngredient.name} (ID: ${newIngredient.id})`);
               ingredient.ingredient_id = newIngredient.id;
               
               // Add to local ingredients array so it shows up in future searches
               setIngredients(prev => [...prev, newIngredient]);
-            } else {
-              // Some other error occurred
-              console.error('Error checking for existing ingredient:', checkError);
-              alert('Error checking ingredients: ' + checkError.message);
-              return;
             }
           }
 
           if (!ingredient.ingredient_id || !ingredient.quantity) {
-            alert('Please complete all ingredient fields');
+            alert(`Please complete all ingredient fields in "${component.name}"`);
             return;
           }
         }
@@ -449,7 +454,7 @@ export default function MenuItemsManagement() {
 
       if (editingItem) {
         // Update existing menu item
-        console.log('Updating existing menu item:', editingItem.id);
+        console.log('📝 Updating existing menu item:', editingItem.id);
         
         const { error: updateError } = await supabase
           .from('menu_items')
@@ -463,7 +468,7 @@ export default function MenuItemsManagement() {
         menuItemId = editingItem.id;
 
         // Delete existing components and their ingredients (cascade will handle component_ingredients)
-        console.log('Deleting existing components for menu item:', menuItemId);
+        console.log('🗑️ Deleting existing components for menu item:', menuItemId);
         const { error: deleteError } = await supabase
           .from('menu_item_components')
           .delete()
@@ -472,7 +477,7 @@ export default function MenuItemsManagement() {
         if (deleteError) throw deleteError;
       } else {
         // Create new menu item
-        console.log('Creating new menu item:', formData.name);
+        console.log('🆕 Creating new menu item:', formData.name);
         
         const { data: newMenuItem, error: insertError } = await supabase
           .from('menu_items')
@@ -487,14 +492,14 @@ export default function MenuItemsManagement() {
 
         if (insertError) throw insertError;
         menuItemId = newMenuItem.id;
-        console.log('Created menu item with ID:', menuItemId);
+        console.log('✅ Created menu item with ID:', menuItemId);
       }
 
       // Insert components and their ingredients
       for (let componentIndex = 0; componentIndex < menuItemComponents.length; componentIndex++) {
         const component = menuItemComponents[componentIndex];
         
-        console.log(`Creating component ${componentIndex + 1}: ${component.name}`);
+        console.log(`🧩 Creating component ${componentIndex + 1}: ${component.name}`);
         
         // Insert component
         const { data: newComponent, error: componentError } = await supabase
@@ -512,7 +517,7 @@ export default function MenuItemsManagement() {
           throw componentError;
         }
 
-        console.log('Created component with ID:', newComponent.id);
+        console.log('✅ Created component with ID:', newComponent.id);
 
         // Insert ingredients for this component
         const ingredientsToInsert = component.ingredients.map(ing => ({
@@ -522,7 +527,7 @@ export default function MenuItemsManagement() {
           unit: ing.unit || 'each' // Keep the recipe unit as entered
         }));
 
-        console.log('Inserting component ingredients:', ingredientsToInsert);
+        console.log(`📦 Inserting ${ingredientsToInsert.length} component ingredients:`, ingredientsToInsert);
 
         const { error: ingredientsError } = await supabase
           .from('component_ingredients')
@@ -540,13 +545,13 @@ export default function MenuItemsManagement() {
       // Calculate and update menu item cost
       await calculateMenuItemCost(menuItemId);
 
-      console.log('Menu item saved successfully');
+      console.log('🎉 Menu item saved successfully');
       alert(editingItem ? 'Menu item updated successfully!' : 'Menu item added successfully!');
       cancelForm();
       fetchMenuItems();
 
     } catch (error) {
-      console.error('Error saving menu item:', error);
+      console.error('❌ Error saving menu item:', error);
       alert('Failed to save menu item: ' + error.message);
     } finally {
       setSaving(false);
@@ -555,7 +560,7 @@ export default function MenuItemsManagement() {
 
   async function calculateComponentCost(componentId) {
     try {
-      console.log('Calculating cost for component:', componentId);
+      console.log(`\n💰 Calculating cost for component: ${componentId}`);
       
       const { data: componentIngredients, error } = await supabase
         .from('component_ingredients')
@@ -563,6 +568,7 @@ export default function MenuItemsManagement() {
           quantity,
           unit,
           ingredients:ingredient_id (
+            id,
             name,
             last_price,
             unit
@@ -573,59 +579,99 @@ export default function MenuItemsManagement() {
       if (error) throw error;
 
       let totalCost = 0;
+      console.log(`🧮 Processing ${componentIngredients.length} ingredients:`);
+
       componentIngredients.forEach(ing => {
         const recipeQuantity = ing.quantity;
         const recipeUnit = ing.unit;
-        const ingredientCost = ing.ingredients?.last_price || 0;
-        const ingredientName = ing.ingredients?.name || '';
+        const ingredient = ing.ingredients;
+        const ingredientCost = ingredient?.last_price || 0;
+        const ingredientName = ingredient?.name || 'Unknown';
+        const ingredientStandardUnit = ingredient?.unit || 'unknown';
+
+        console.log(`  🥬 ${ingredientName}:`);
+        console.log(`     Recipe needs: ${recipeQuantity} ${recipeUnit}`);
+        console.log(`     Ingredient cost: ${ingredientCost.toFixed(4)}/${ingredientStandardUnit}`);
 
         if (ingredientCost > 0) {
-          // Use the new standardized cost calculation
-          const cost = calculateStandardizedCost(
-            recipeQuantity,
-            recipeUnit,
-            ingredientCost // This is now cost per standard unit
-          );
-          totalCost += cost;
-          
-          console.log(`${ingredientName}: ${recipeQuantity} ${recipeUnit} = $${cost.toFixed(4)}`);
+          try {
+            // Use the standardized cost calculation
+            const cost = calculateStandardizedCost(
+              recipeQuantity,
+              recipeUnit,
+              ingredientCost,
+              ingredientName
+            );
+            totalCost += cost;
+            
+            console.log(`     Calculated cost: ${cost.toFixed(4)}`);
+          } catch (error) {
+            console.warn(`     ⚠️ Cost calculation failed: ${error.message}`);
+            // Fallback to simple multiplication
+            const fallbackCost = recipeQuantity * ingredientCost;
+            totalCost += fallbackCost;
+            console.log(`     Fallback cost: ${fallbackCost.toFixed(4)}`);
+          }
+        } else {
+          console.log(`     ⚠️ No cost data available`);
         }
       });
 
-      console.log(`Component ${componentId} total cost: $${totalCost.toFixed(4)}`);
+      console.log(`📊 Component total cost: ${totalCost.toFixed(4)}`);
 
-      await supabase
+      const { error: updateError } = await supabase
         .from('menu_item_components')
         .update({ cost: totalCost })
         .eq('id', componentId);
 
+      if (updateError) {
+        console.error('Failed to update component cost:', updateError);
+      }
+
+      return totalCost;
+
     } catch (error) {
       console.error('Error calculating component cost:', error);
+      return 0;
     }
   }
 
   async function calculateMenuItemCost(menuItemId) {
     try {
-      console.log('Calculating cost for menu item:', menuItemId);
+      console.log(`\n📊 Calculating total cost for menu item: ${menuItemId}`);
       
       const { data: components, error } = await supabase
         .from('menu_item_components')
-        .select('cost')
+        .select('id, name, cost')
         .eq('menu_item_id', menuItemId);
 
       if (error) throw error;
 
-      const totalCost = components.reduce((sum, comp) => sum + (comp.cost || 0), 0);
-      
-      console.log(`Menu item ${menuItemId} total cost: $${totalCost.toFixed(4)}`);
+      let totalCost = 0;
+      console.log(`🧩 Processing ${components.length} components:`);
 
-      await supabase
+      components.forEach(comp => {
+        const componentCost = comp.cost || 0;
+        totalCost += componentCost;
+        console.log(`  ${comp.name}: ${componentCost.toFixed(4)}`);
+      });
+      
+      console.log(`🍽️ Menu item total cost: ${totalCost.toFixed(4)}`);
+
+      const { error: updateError } = await supabase
         .from('menu_items')
         .update({ cost: totalCost })
         .eq('id', menuItemId);
 
+      if (updateError) {
+        console.error('Failed to update menu item cost:', updateError);
+      }
+
+      return totalCost;
+
     } catch (error) {
       console.error('Error calculating menu item cost:', error);
+      return 0;
     }
   }
 
@@ -633,7 +679,7 @@ export default function MenuItemsManagement() {
     if (!window.confirm(`Are you sure you want to delete "${item.name}"?`)) return;
 
     try {
-      console.log('Deleting menu item:', item.id);
+      console.log('🗑️ Deleting menu item:', item.id);
       
       // Components and their ingredients will be deleted by cascade
       const { error } = await supabase
@@ -643,11 +689,11 @@ export default function MenuItemsManagement() {
 
       if (error) throw error;
 
-      console.log('Menu item deleted successfully');
+      console.log('✅ Menu item deleted successfully');
       alert('Menu item deleted successfully!');
       fetchMenuItems();
     } catch (error) {
-      console.error('Error deleting menu item:', error);
+      console.error('❌ Error deleting menu item:', error);
       alert('Failed to delete menu item');
     }
   }
@@ -1009,9 +1055,15 @@ export default function MenuItemsManagement() {
                     
                     return (
                       <div key={item.id} className={styles.tableRow}>
-                        <div className={styles.tableCell}>
+                        <div 
+                          className={styles.tableCell}
+                          onClick={() => navigate(`/admin/menu-item-cost-breakdown/${item.id}`)}
+                          style={{ cursor: 'pointer' }}
+                          title="Click to view detailed cost breakdown"
+                        >
                           <div className={styles.itemInfo}>
                             <span className={styles.itemName}>{item.name}</span>
+                            <span className={styles.clickHint}>Click for cost breakdown →</span>
                           </div>
                         </div>
                         <div className={styles.tableCell}>

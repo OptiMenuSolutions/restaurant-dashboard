@@ -1,0 +1,598 @@
+/* File: src/pages/MenuItemCostBreakdown.module.css */
+
+.wrapper {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+/* Header Styles */
+.header {
+  background: white;
+  border-bottom: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.headerContent {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1rem 2rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.backButton {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  color: #475569;
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.backButton:hover {
+  background: #e2e8f0;
+  color: #334155;
+  transform: translateX(-2px);
+}
+
+.backIcon {
+  width: 16px;
+  height: 16px;
+}
+
+.headerInfo {
+  flex: 1;
+}
+
+.title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0;
+}
+
+.subtitle {
+  font-size: 1rem;
+  color: #64748b;
+  margin: 0.25rem 0 0 0;
+}
+
+/* Loading & Error States */
+.loadingContainer,
+.errorContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  gap: 1rem;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #e2e8f0;
+  border-top: 3px solid #3b82f6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loadingText {
+  color: #64748b;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.errorIcon {
+  font-size: 3rem;
+}
+
+.errorText {
+  color: #dc2626;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.errorMessage {
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+/* Main Content */
+.main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+/* Summary Card */
+.summaryCard {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.summaryHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2rem 2rem 1rem 2rem;
+}
+
+.summaryTitle {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0;
+}
+
+.summaryActions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.expandButton,
+.collapseButton {
+  padding: 0.5rem 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: white;
+  color: #374151;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.expandButton:hover,
+.collapseButton:hover {
+  background: #f9fafb;
+  border-color: #9ca3af;
+}
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2rem;
+  padding: 1rem 2rem 2rem 2rem;
+}
+
+.summaryItem {
+  text-align: center;
+}
+
+.summaryLabel {
+  font-size: 0.875rem;
+  color: #6b7280;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+.summaryValue {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.goodPercent {
+  color: #059669;
+}
+
+.okPercent {
+  color: #d97706;
+}
+
+.highPercent,
+.lowPercent {
+  color: #dc2626;
+}
+
+/* Breakdown Card */
+.breakdownCard {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.breakdownHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2rem 2rem 1rem 2rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.breakdownTitle {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0;
+}
+
+.componentCount {
+  background: #f3f4f6;
+  color: #374151;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+/* Components List */
+.componentsList {
+  padding: 1rem 0;
+}
+
+.componentCard {
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.componentCard:last-child {
+  border-bottom: none;
+}
+
+.componentHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem 2rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.componentHeader:hover {
+  background: #f8fafc;
+}
+
+.componentLeft {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex: 1;
+}
+
+.expandIcon {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: #6b7280;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.expandIcon.rotated {
+  transform: rotate(90deg);
+}
+
+.expandIcon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.componentInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.componentName {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0;
+}
+
+.componentMeta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.discrepancyWarning {
+  color: #d97706;
+  font-weight: 500;
+}
+
+.componentRight {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.25rem;
+}
+
+.componentCost {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #059669;
+}
+
+.componentPercent {
+  font-size: 0.875rem;
+  color: #6b7280;
+  background: #f3f4f6;
+  padding: 0.125rem 0.5rem;
+  border-radius: 8px;
+}
+
+/* Ingredients Container */
+.ingredientsContainer {
+  padding: 0 2rem 1.5rem 2rem;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+}
+
+.ingredientsHeader {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
+  gap: 1rem;
+  padding: 1rem 0 0.5rem 0;
+  border-bottom: 1px solid #e2e8f0;
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6b7280;
+}
+
+.ingredientRow {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
+  gap: 1rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid #f1f5f9;
+  align-items: center;
+}
+
+.ingredientRow:last-of-type {
+  border-bottom: none;
+}
+
+.ingredientName {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.name {
+  font-weight: 500;
+  color: #1e293b;
+}
+
+.lastOrdered {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.ingredientAmount {
+  font-size: 0.875rem;
+  color: #374151;
+  font-weight: 500;
+}
+
+.ingredientUnitCost {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.unitLabel {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.noPriceLabel {
+  font-size: 0.875rem;
+  color: #dc2626;
+  font-style: italic;
+}
+
+.ingredientTotalCost {
+  font-weight: 600;
+  color: #059669;
+  font-size: 0.875rem;
+}
+
+.ingredientStatus {
+  display: flex;
+  justify-content: center;
+}
+
+.statusGood {
+  color: #059669;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.statusMissing {
+  color: #dc2626;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.componentTotal {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 0 0 0;
+  margin-top: 1rem;
+  border-top: 2px solid #e2e8f0;
+  font-weight: 600;
+}
+
+.totalLabel {
+  color: #374151;
+  font-size: 1rem;
+}
+
+.totalValue {
+  color: #059669;
+  font-size: 1.125rem;
+}
+
+/* Analysis Card */
+.analysisCard {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+  padding: 2rem;
+}
+
+.analysisTitle {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 1.5rem 0;
+}
+
+.analysisContent {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.analysisRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.analysisRow:last-child {
+  border-bottom: none;
+}
+
+.analysisValue {
+  font-weight: 600;
+  color: #059669;
+  font-size: 1rem;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .main {
+    padding: 1rem;
+  }
+  
+  .headerContent {
+    padding: 1rem;
+  }
+  
+  .summaryGrid {
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    padding: 1rem;
+  }
+  
+  .summaryActions {
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  
+  .expandButton,
+  .collapseButton {
+    font-size: 0.75rem;
+    padding: 0.375rem 0.75rem;
+  }
+  
+  .componentHeader {
+    padding: 1rem;
+  }
+  
+  .componentLeft {
+    gap: 0.5rem;
+  }
+  
+  .ingredientsContainer {
+    padding: 0 1rem 1rem 1rem;
+  }
+  
+  .ingredientsHeader,
+  .ingredientRow {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+  
+  .ingredientsHeader {
+    display: none;
+  }
+  
+  .ingredientRow {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 1rem;
+    background: white;
+    border-radius: 8px;
+    margin-bottom: 0.5rem;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+  }
+  
+  .analysisCard {
+    padding: 1rem;
+  }
+  
+  .analysisRow {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .title {
+    font-size: 1.25rem;
+  }
+  
+  .summaryGrid {
+    grid-template-columns: 1fr;
+  }
+  
+  .componentName {
+    font-size: 1rem;
+  }
+  
+  .componentCost {
+    font-size: 1.125rem;
+  }
+  
+  .breakdownHeader,
+  .summaryHeader {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: stretch;
+  }
+  
+  .summaryActions {
+    flex-direction: row;
+    justify-content: center;
+  }
+}
