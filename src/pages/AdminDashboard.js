@@ -95,21 +95,27 @@ async function fetchDashboardStats() {
       <main className={styles.main}>
         {/* Stats Cards */}
         <div className={styles.statsGrid}>
-          <div className={styles.statCard}>
+          <div 
+            className={`${styles.statCard} ${styles.clickableCard}`}
+            onClick={() => navigate('/admin/clients')}
+          >
             <div className={styles.statIcon}>🏪</div>
             <div className={styles.statContent}>
               <h3 className={styles.statTitle}>Active Clients</h3>
               <p className={styles.statNumber}>{stats.clientCount}</p>
-              <p className={styles.statDescription}>Restaurant partners</p>
+              <p className={styles.statDescription}>Restaurant partners • Click to manage</p>
             </div>
           </div>
 
-          <div className={styles.statCard}>
+          <div 
+            className={`${styles.statCard} ${styles.clickableCard}`}
+            onClick={() => navigate('/admin/total-invoices')}
+          >
             <div className={styles.statIcon}>📄</div>
             <div className={styles.statContent}>
               <h3 className={styles.statTitle}>Total Invoices</h3>
               <p className={styles.statNumber}>{stats.totalInvoices}</p>
-              <p className={styles.statDescription}>All time uploads</p>
+              <p className={styles.statDescription}>All time uploads • Click to manage</p>
             </div>
           </div>
 
@@ -148,6 +154,17 @@ async function fetchDashboardStats() {
 
           <button 
             className={styles.actionButton}
+            onClick={() => navigate('/admin/total-invoices')}
+          >
+            <div className={styles.actionIcon}>📊</div>
+            <div className={styles.actionContent}>
+              <h4>Manage All Invoices</h4>
+              <p>View and edit all processed invoices</p>
+            </div>
+          </button>
+
+          <button 
+            className={styles.actionButton}
             onClick={() => navigate('/admin/menu-items')}
           >
             <div className={styles.actionIcon}>🍽️</div>
@@ -161,7 +178,7 @@ async function fetchDashboardStats() {
             className={styles.actionButton}
             onClick={() => navigate('/admin/analytics')}
           >
-            <div className={styles.actionIcon}>📊</div>
+            <div className={styles.actionIcon}>📈</div>
             <div className={styles.actionContent}>
               <h4>View Analytics</h4>
               <p>Cost analysis and reporting</p>

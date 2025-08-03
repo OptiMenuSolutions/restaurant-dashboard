@@ -372,6 +372,12 @@ export default function InvoiceEditor() {
         });
       }
 
+      // Debug: Show collected affected menu items
+      console.log(`\n🔍 DEBUGGING: Collected ${affectedMenuItems.size} affected menu items:`);
+      for (const [id, info] of affectedMenuItems) {
+        console.log(`  - ${info.name} (ID: ${id}) - Current cost: $${info.oldCost}`);
+      }
+
       // Delete existing invoice items
       console.log('\n🗑️ Cleaning up old invoice items...');
       const { error: deleteError } = await supabase
@@ -412,6 +418,9 @@ export default function InvoiceEditor() {
       // Recalculate costs for affected menu items using standardized units
       if (affectedMenuItems.size > 0) {
         console.log(`\n🔄 Recalculating costs for ${affectedMenuItems.size} affected menu items...`);
+
+        // Store cost changes for history tracking (keyed by menu item ID)
+        const costChanges = new Map();
 
         for (const [menuItemId, menuItemInfo] of affectedMenuItems) {
           console.log(`\n📊 Recalculating: "${menuItemInfo.name}"`);
@@ -506,33 +515,101 @@ export default function InvoiceEditor() {
             .update({ cost: newMenuItemCost })
             .eq('id', menuItemId);
 
-          // Log cost change if significant (> 1 cent)
-          if (Math.abs(menuItemInfo.oldCost - newMenuItemCost) > 0.01) {
+          // Store cost change for history tracking
+          // ALWAYS track cost changes, even small ones, when processing invoices
+          if (menuItemInfo.oldCost !== newMenuItemCost) {
             const changeAmount = newMenuItemCost - menuItemInfo.oldCost;
             const changePercent = menuItemInfo.oldCost > 0 ? (changeAmount / menuItemInfo.oldCost * 100) : 0;
             
             console.log(`📈 Cost change: ${changeAmount >= 0 ? '+' : ''}$${changeAmount.toFixed(4)} (${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(1)}%)`);
             
-            // Record cost change in history
+            costChanges.set(menuItemId, {
+              menuItemId: menuItemId,
+              menuItemName: menuItemInfo.name,
+              oldCost: menuItemInfo.oldCost,
+              newCost: newMenuItemCost,
+              changeAmount: changeAmount,
+              changePercent: changePercent,
+              restaurantId: menuItemInfo.restaurant_id
+            });
+          } else {
+            console.log(`📊 No cost change for ${menuItemInfo.name}`);
+          }
+        }
+
+        // ENHANCED Process cost history entries by invoice date
+        if (costChanges.size > 0) {
+          console.log(`\n📝 Processing cost history for ${costChanges.size} menu items on invoice date: ${invoiceDetails.date}`);
+          console.log(`📝 DEBUG: costChanges Map contents:`, Array.from(costChanges.entries()));
+          
+          for (const [menuItemId, costChange] of costChanges) {
+            console.log(`\n🔍 Processing cost change for ${costChange.menuItemName}`);
+            console.log(`🔍 menuItemId = ${menuItemId}`);
+            console.log(`🔍 costChange object:`, costChange);
+            
             try {
-              await supabase
+              // Create the timestamp for the invoice date (use current time for uniqueness)
+              const now = new Date();
+              const invoiceDate = new Date(invoiceDetails.date);
+              const invoiceTimestamp = new Date(
+                invoiceDate.getFullYear(),
+                invoiceDate.getMonth(),
+                invoiceDate.getDate(),
+                now.getHours(),
+                now.getMinutes(),
+                now.getSeconds(),
+                now.getMilliseconds()
+              ).toISOString();
+              
+              console.log(`📅 Using timestamp: ${invoiceTimestamp}`);
+              
+              // Always create a new history entry for invoice processing
+              console.log(`📝 Creating new cost history entry for ${costChange.menuItemName} on ${invoiceDetails.date}`);
+              console.log(`   Cost change: $${costChange.oldCost.toFixed(4)} → $${costChange.newCost.toFixed(4)}`);
+              
+              const historyEntry = {
+                menu_item_id: menuItemId,
+                menu_item_name: costChange.menuItemName,
+                old_cost: Number(costChange.oldCost.toFixed(4)),
+                new_cost: Number(costChange.newCost.toFixed(4)),
+                change_reason: 'invoice_saved',
+                restaurant_id: costChange.restaurantId,
+                created_at: invoiceTimestamp
+              };
+              
+              console.log(`📝 Inserting history entry:`, historyEntry);
+              
+              const { data: insertedHistory, error: insertError } = await supabase
                 .from('menu_item_cost_history')
-                .insert({
-                  menu_item_id: menuItemId,
-                  menu_item_name: menuItemInfo.name,
-                  old_cost: menuItemInfo.oldCost,
-                  new_cost: newMenuItemCost,
-                  change_reason: 'invoice_saved',
-                  change_amount: changeAmount,
-                  change_percent: changePercent,
-                  restaurant_id: menuItemInfo.restaurant_id,
-                  invoice_id: id,
-                  created_at: new Date().toISOString()
+                .insert(historyEntry)
+                .select()
+                .single();
+
+              if (insertError) {
+                console.error('❌ Failed to create cost history:', insertError);
+                console.error('❌ Insert error details:', {
+                  code: insertError.code,
+                  message: insertError.message,
+                  details: insertError.details,
+                  hint: insertError.hint
                 });
+                console.error('❌ Data being inserted:', historyEntry);
+                
+                // Try to continue with other entries instead of stopping
+                continue;
+              } else {
+                console.log(`✅ Created cost history for ${costChange.menuItemName}:`, insertedHistory);
+              }
             } catch (historyError) {
-              console.warn('Failed to record cost history:', historyError);
+              console.error(`❌ Unexpected error processing cost history for ${costChange.menuItemName}:`, historyError);
+              // Continue with other entries
+              continue;
             }
           }
+        } else {
+          console.log(`\n❌ DEBUG: No cost changes detected! costChanges.size = ${costChanges.size}`);
+          console.log(`❌ DEBUG: affectedMenuItems.size = ${affectedMenuItems.size}`);
+          console.log(`❌ DEBUG: affectedMenuItems contents:`, Array.from(affectedMenuItems.entries()));
         }
 
         console.log(`✅ Recalculated costs for all affected menu items`);
@@ -684,7 +761,7 @@ export default function InvoiceEditor() {
               
               {invoiceItems.map((item, index) => (
                 <div key={item.id || index} className={styles.itemRow}>
-                  <div className={styles.itemCell}>
+                  <div className={styles.itemCell} data-label="Item Name">
                     <input
                       type="text"
                       value={item.item_name}
@@ -693,7 +770,7 @@ export default function InvoiceEditor() {
                     />
                   </div>
                   
-                  <div className={styles.itemCell}>
+                  <div className={styles.itemCell} data-label="Quantity">
                     <input
                       type="number"
                       step="0.01"
@@ -703,7 +780,7 @@ export default function InvoiceEditor() {
                     />
                   </div>
                   
-                  <div className={styles.itemCell}>
+                  <div className={styles.itemCell} data-label="Unit">
                     <input
                       type="text"
                       value={item.unit}
@@ -713,7 +790,7 @@ export default function InvoiceEditor() {
                     />
                   </div>
                   
-                  <div className={styles.itemCell}>
+                  <div className={styles.itemCell} data-label="Amount">
                     <input
                       type="number"
                       step="0.01"
@@ -723,13 +800,13 @@ export default function InvoiceEditor() {
                     />
                   </div>
                   
-                  <div className={styles.itemCell}>
+                  <div className={styles.itemCell} data-label="Unit Cost">
                     <span className={styles.unitCost}>
                       ${item.unit_cost.toFixed(2)}
                     </span>
                   </div>
                   
-                  <div className={styles.itemCell}>
+                  <div className={styles.itemCell} data-label="Ingredient">
                     <div className={styles.ingredientSearch}>
                       <input
                         type="text"
@@ -753,7 +830,7 @@ export default function InvoiceEditor() {
                     </div>
                   </div>
                   
-                  <div className={styles.itemCell}>
+                  <div className={styles.itemCell} data-label="Action">
                     <button
                       className={styles.removeButton}
                       onClick={() => removeInvoiceItem(index)}

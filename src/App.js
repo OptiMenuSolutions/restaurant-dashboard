@@ -15,6 +15,10 @@ import AdminDashboard from './pages/AdminDashboard';
 import PendingInvoices from './pages/PendingInvoices';
 import InvoiceEditor from './pages/InvoiceEditor';
 import MenuItemsManagement from './pages/MenuItemsManagement';
+import IngredientsManagement from './pages/IngredientsManagement';
+import AnalyticsDashboard from './pages/AnalyticsDashboard';
+import TotalInvoices from './pages/TotalInvoices';
+import ClientManagement from './pages/ClientManagement';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 function ProtectedRoute({ children }) {
@@ -42,6 +46,10 @@ function App() {
           <Route path="/admin/invoice-editor/:id" element={<InvoiceEditor />} />
           <Route path="/admin/menu-items" element={<MenuItemsManagement />} />
           <Route path="/admin/menu-item-cost-breakdown/:id" element={<MenuItemCostBreakdown />} /> {/* NEW ROUTE */}
+          <Route path="/admin/ingredients" element={<IngredientsManagement />} />
+          <Route path="/admin/analytics" element={<AnalyticsDashboard />} />
+          <Route path="/admin/total-invoices" element={<TotalInvoices />} />
+          <Route path="/admin/clients" element={<ClientManagement />} />
 
           {/* Protected client routes */}
           <Route
