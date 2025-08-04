@@ -87,7 +87,7 @@ export default function AdminDashboard() {
           </div>
           
           <div className={styles.welcomeMessage}>
-            <h1>System Overview</h1>
+            <h1 className="text-red-500">System Overview</h1>
           </div>
           
           <div className={styles.headerActions}>
