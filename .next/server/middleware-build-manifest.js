@@ -25,15 +25,10 @@ globalThis.__BUILD_MANIFEST = {
       "static/chunks/main.js",
       "static/chunks/pages/admin.js"
     ],
-    "/admin/invoices/edit/[id]": [
+    "/admin/analytics": [
       "static/chunks/webpack.js",
       "static/chunks/main.js",
-      "static/chunks/pages/admin/invoices/edit/[id].js"
-    ],
-    "/admin/pending-invoices": [
-      "static/chunks/webpack.js",
-      "static/chunks/main.js",
-      "static/chunks/pages/admin/pending-invoices.js"
+      "static/chunks/pages/admin/analytics.js"
     ]
   },
   "ampFirstPages": []

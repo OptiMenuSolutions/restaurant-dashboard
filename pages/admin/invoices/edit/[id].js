@@ -1,18 +1,18 @@
 // pages/admin/invoices/edit/[id].js
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import Link from 'next/link';
+import AdminLayout from '../../../../components/AdminLayout';
 import supabase from '../../../../lib/supabaseClient';
 // You'll need to create this file by copying from src/utils/standardizedUnits.js
 import { standardizeInvoiceItem, calculateStandardizedCost, validateUnit } from '../../../../lib/standardizedUnits';
 import {
-  IconArrowLeft,
   IconPlus,
   IconTrash,
   IconSearch,
   IconDeviceFloppy,
   IconFileText,
   IconExternalLink,
+  IconEdit,
 } from '@tabler/icons-react';
 
 export default function InvoiceEditor() {
@@ -285,114 +285,66 @@ export default function InvoiceEditor() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-3 border-gray-300 border-t-[#ADD8E6] rounded-full animate-spin"></div>
-          <p className="text-gray-600">Loading invoice...</p>
-        </div>
-
-        {/* Right Panel - File Viewer */}
-        <div className="hidden xl:block w-96 bg-white border-l border-gray-200">
-          <div className="sticky top-24 h-[calc(100vh-6rem)]">
-            <div className="p-6 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Uploaded Invoice</h3>
-              {invoice?.file_url && (
-                <a
-                  href={invoice.file_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 text-sm text-[#ADD8E6] hover:underline"
-                >
-                  <IconExternalLink size={16} />
-                  Open in New Tab
-                </a>
-              )}
-            </div>
-            
-            <div className="p-6 h-full overflow-auto">
-              {invoice?.file_url ? (
-                <div className="h-full">
-                  {invoice.file_url.toLowerCase().includes('.pdf') ? (
-                    <iframe
-                      src={invoice.file_url}
-                      className="w-full h-full border border-gray-200 rounded-lg"
-                      title="Invoice PDF"
-                    />
-                  ) : (
-                    <img
-                      src={invoice.file_url}
-                      alt="Invoice"
-                      className="w-full h-auto border border-gray-200 rounded-lg"
-                    />
-                  )}
-                </div>
-              ) : (
-                <div className="flex items-center justify-center h-32 bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg">
-                  <div className="text-center">
-                    <IconFileText size={32} className="mx-auto mb-2 text-gray-400" />
-                    <p className="text-sm text-gray-500">No file available</p>
-                  </div>
-                </div>
-              )}
-            </div>
+      <AdminLayout 
+        pageTitle="Invoice Editor" 
+        pageDescription={restaurant?.name || "Loading..."}
+        pageIcon={IconEdit}
+      >
+        <div className="p-6 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-10 h-10 border-3 border-gray-300 border-t-[#ADD8E6] rounded-full animate-spin"></div>
+            <p className="text-gray-600">Loading invoice...</p>
           </div>
         </div>
-      </div>
+      </AdminLayout>
     );
   }
 
   if (!invoice) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
+      <AdminLayout 
+        pageTitle="Invoice Not Found" 
+        pageDescription="The requested invoice could not be found"
+        pageIcon={IconFileText}
+      >
+        <div className="p-6 text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-4">Invoice not found</h1>
-          <Link href="/admin/pending-invoices" className="text-[#ADD8E6] hover:underline">
+          <p className="text-gray-600 mb-6">The requested invoice could not be found.</p>
+          <button 
+            onClick={() => router.push('/admin/pending-invoices')}
+            className="inline-flex items-center gap-2 px-6 py-3 bg-[#ADD8E6] text-gray-900 rounded-lg hover:bg-[#9CC5D4] transition-colors font-medium"
+          >
             ← Back to Pending Invoices
-          </Link>
+          </button>
         </div>
-      </div>
+      </AdminLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4 shadow-sm sticky top-0 z-10">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link 
-              href="/admin/pending-invoices"
-              className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
-            >
-              <IconArrowLeft size={20} />
-              <span>Back to Pending Invoices</span>
-            </Link>
-            <div className="h-6 w-px bg-gray-300"></div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Invoice Editor</h1>
-              <p className="text-gray-600">{restaurant?.name}</p>
-            </div>
-          </div>
-          
-          <button 
-            onClick={handleSubmit}
-            disabled={saving}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
-              saving
-                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                : 'bg-[#ADD8E6] text-gray-900 hover:bg-[#9CC5D4] shadow-sm hover:shadow-md'
-            }`}
-          >
-            <IconDeviceFloppy size={18} />
-            {saving ? 'Saving...' : 'Save Invoice'}
-          </button>
-        </div>
-      </header>
-
-      {/* Main Content */}
+    <AdminLayout 
+      pageTitle="Invoice Editor" 
+      pageDescription={restaurant?.name}
+      pageIcon={IconEdit}
+    >
       <div className="flex">
         {/* Left Panel - Invoice Form */}
         <div className="flex-1 p-6 max-w-none">
+          <div className="flex justify-end mb-6">
+            <button 
+              onClick={handleSubmit}
+              disabled={saving}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
+                saving
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-[#ADD8E6] text-gray-900 hover:bg-[#9CC5D4] shadow-sm hover:shadow-md'
+              }`}
+            >
+              <IconDeviceFloppy size={18} />
+              {saving ? 'Saving...' : 'Save Invoice'}
+            </button>
+          </div>
+
           {/* Invoice Details */}
           <section className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm mb-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-6">Invoice Details</h2>
@@ -745,6 +697,6 @@ export default function InvoiceEditor() {
           </div>
         </div>
       </div>
-    </div>
+    </AdminLayout>
   );
 }

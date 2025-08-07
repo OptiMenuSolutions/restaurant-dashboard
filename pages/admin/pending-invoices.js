@@ -1,10 +1,9 @@
 // pages/admin/pending-invoices.js
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import Link from 'next/link';
+import AdminLayout from '../../components/AdminLayout';
 import supabase from '../../lib/supabaseClient';
 import {
-  IconArrowLeft,
   IconFileText,
   IconClock,
   IconEye,
@@ -103,59 +102,47 @@ export default function PendingInvoices() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-3 border-gray-300 border-t-[#ADD8E6] rounded-full animate-spin"></div>
-          <p className="text-gray-600">Loading pending invoices...</p>
+      <AdminLayout 
+        pageTitle="Pending Invoices" 
+        pageDescription="Review and process uploaded invoices"
+        pageIcon={IconClock}
+      >
+        <div className="p-6 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-10 h-10 border-3 border-gray-300 border-t-[#ADD8E6] rounded-full animate-spin"></div>
+            <p className="text-gray-600">Loading pending invoices...</p>
+          </div>
         </div>
-      </div>
+      </AdminLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4 shadow-sm sticky top-0 z-10">
+    <AdminLayout 
+      pageTitle="Pending Invoices" 
+      pageDescription="Review and process uploaded invoices"
+      pageIcon={IconClock}
+    >
+      {/* Action Header */}
+      <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link 
-              href="/admin"
-              className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
-            >
-              <IconArrowLeft size={20} />
-              <span>Back to Dashboard</span>
-            </Link>
-            <div className="h-6 w-px bg-gray-300"></div>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-10 h-10 bg-orange-100 rounded-lg">
-                <IconClock size={20} className="text-orange-600" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Pending Invoices</h1>
-                <p className="text-gray-600">Review and process uploaded invoices</p>
-              </div>
-            </div>
+          <div className="flex items-center gap-2 px-3 py-2 bg-orange-100 text-orange-800 rounded-lg">
+            <IconAlertTriangle size={16} />
+            <span className="font-medium">{invoices.length} pending</span>
           </div>
-          
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 px-3 py-2 bg-orange-100 text-orange-800 rounded-lg">
-              <IconAlertTriangle size={16} />
-              <span className="font-medium">{invoices.length} pending</span>
-            </div>
-            <button 
-              onClick={fetchPendingInvoices}
-              disabled={refreshing}
-              className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <IconRefresh size={18} className={refreshing ? 'animate-spin' : ''} />
-              Refresh
-            </button>
-          </div>
+          <button 
+            onClick={fetchPendingInvoices}
+            disabled={refreshing}
+            className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <IconRefresh size={18} className={refreshing ? 'animate-spin' : ''} />
+            Refresh
+          </button>
         </div>
-      </header>
+      </div>
 
       {/* Main Content */}
-      <main className="p-6">
+      <div className="p-6">
         {invoices.length === 0 ? (
           // Empty State
           <div className="max-w-md mx-auto text-center py-12">
@@ -167,13 +154,12 @@ export default function PendingInvoices() {
               There are no pending invoices to review at this time. 
               All uploaded invoices have been processed.
             </p>
-            <Link 
-              href="/admin"
+            <button 
+              onClick={() => router.push('/admin')}
               className="inline-flex items-center gap-2 px-6 py-3 bg-[#ADD8E6] text-gray-900 rounded-lg hover:bg-[#9CC5D4] transition-colors font-medium"
             >
-              <IconArrowLeft size={18} />
               Back to Dashboard
-            </Link>
+            </button>
           </div>
         ) : (
           // Invoice Table
@@ -375,7 +361,7 @@ export default function PendingInvoices() {
             </div>
           </div>
         )}
-      </main>
-    </div>
+      </div>
+    </AdminLayout>
   );
 }
