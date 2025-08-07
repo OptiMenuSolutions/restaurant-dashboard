@@ -2,6 +2,7 @@
   "/_app": "pages/_app.js",
   "/_error": "pages/_error.js",
   "/_document": "pages/_document.js",
-  "/admin/login": "pages/admin/login.js",
+  "/admin/pending-invoices": "pages/admin/pending-invoices.js",
+  "/admin/invoices/edit/[id]": "pages/admin/invoices/edit/[id].js",
   "/admin": "pages/admin.js"
 }
