@@ -2,7 +2,7 @@
   "/_app": "pages/_app.js",
   "/_error": "pages/_error.js",
   "/_document": "pages/_document.js",
-  "/admin": "pages/admin.js",
-  "/admin/analytics": "pages/admin/analytics.js",
-  "/admin/activity": "pages/admin/activity.js"
+  "/client/login": "pages/client/login.js",
+  "/client/signup": "pages/client/signup.js",
+  "/client/dashboard": "pages/client/dashboard.js"
 }
