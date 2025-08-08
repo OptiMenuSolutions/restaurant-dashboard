@@ -31,6 +31,7 @@ export default function ProspectiveClientManagement() {
   const [sortDirection, setSortDirection] = useState('asc');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingProspect, setEditingProspect] = useState(null);
+  const [viewingProspect, setViewingProspect] = useState(null);
 
   useEffect(() => {
     const checkUser = async () => {
@@ -347,7 +348,11 @@ export default function ProspectiveClientManagement() {
                         new Date(prospect.last_contacted_date) < new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
                       
                       return (
-                        <tr key={prospect.id} className="hover:bg-gray-50">
+                        <tr 
+                          key={prospect.id} 
+                          className="hover:bg-gray-50 cursor-pointer"
+                          onClick={() => setViewingProspect(prospect)}
+                        >
                           <td className="py-4 px-6">
                             <div className="flex items-center gap-3">
                               <div className="flex items-center justify-center w-10 h-10 bg-blue-100 rounded-lg">
@@ -419,16 +424,20 @@ export default function ProspectiveClientManagement() {
                             <div className="flex items-center gap-2">
                               <button
                                 className="flex items-center gap-1 px-3 py-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md transition-colors text-sm"
-                                onClick={() => setEditingProspect(prospect)}
-                                title="Edit Prospect"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingProspect(prospect);
+                                }}
                               >
                                 <IconEdit size={16} />
                                 Edit
                               </button>
                               <button
                                 className="flex items-center gap-1 px-3 py-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors text-sm"
-                                onClick={() => handleDelete(prospect.id)}
-                                title="Delete Prospect"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDelete(prospect.id);
+                                }}
                               >
                                 <IconTrash size={16} />
                                 Delete
@@ -449,7 +458,11 @@ export default function ProspectiveClientManagement() {
                     new Date(prospect.last_contacted_date) < new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
                   
                   return (
-                    <div key={prospect.id} className="p-6 border-b border-gray-200 last:border-b-0">
+                    <div 
+                      key={prospect.id} 
+                      className="p-6 border-b border-gray-200 last:border-b-0 cursor-pointer hover:bg-gray-50"
+                      onClick={() => setViewingProspect(prospect)}
+                    >
                       <div className="flex items-start justify-between mb-4">
                         <div className="flex items-center gap-3">
                           <div className="flex items-center justify-center w-12 h-12 bg-blue-100 rounded-lg">
@@ -541,6 +554,17 @@ export default function ProspectiveClientManagement() {
       )}
     </AdminLayout>
   );
+      {/* View Modal */}
+    {viewingProspect && (
+      <ViewProspectModal 
+        prospect={viewingProspect}
+        onClose={() => setViewingProspect(null)}
+        onEdit={() => {
+          setEditingProspect(viewingProspect);
+          setViewingProspect(null);
+        }}
+      />
+    )}
 }
 
 // Modal Component for Add/Edit
@@ -828,6 +852,180 @@ function ProspectModal({ prospect, onClose, onSave }) {
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+}
+// View-Only Modal Component
+function ViewProspectModal({ prospect, onClose, onEdit }) {
+  const needsFollowUp = !prospect.last_contacted_date || 
+    new Date(prospect.last_contacted_date) < new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-12 h-12 bg-blue-100 rounded-lg">
+                <IconBuilding size={24} className="text-blue-600" />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">{prospect.restaurant_name}</h2>
+                <p className="text-gray-600">Prospective Client Details</p>
+              </div>
+            </div>
+            {needsFollowUp && (
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-orange-100 text-orange-800">
+                <IconClock size={16} className="mr-1" />
+                Needs Follow-up
+              </span>
+            )}
+          </div>
+        </div>
+        
+        <div className="p-6 space-y-6">
+          {/* Contact Information */}
+          <div>
+            <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
+              <IconUsers size={20} className="text-gray-600" />
+              Contact Information
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gray-50 p-4 rounded-lg">
+              <div>
+                <label className="block text-sm font-medium text-gray-500 mb-1">Contact Name</label>
+                <p className="text-gray-900 font-medium">
+                  {prospect.contact_name || <span className="text-gray-400 italic">Not provided</span>}
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-500 mb-1">Phone Number</label>
+                <div className="flex items-center gap-2">
+                  <IconPhone size={16} className="text-gray-400" />
+                  <p className="text-gray-900">
+                    {prospect.phone_number || <span className="text-gray-400 italic">Not provided</span>}
+                  </p>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-500 mb-1">Email</label>
+                <div className="flex items-center gap-2">
+                  <IconMail size={16} className="text-gray-400" />
+                  <p className="text-gray-900">
+                    {prospect.email || <span className="text-gray-400 italic">Not provided</span>}
+                  </p>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-500 mb-1">Last Contacted</label>
+                <div className="flex items-center gap-2">
+                  <IconCalendar size={16} className="text-gray-400" />
+                  <p className="text-gray-900">
+                    {prospect.last_contacted_date 
+                      ? new Date(prospect.last_contacted_date).toLocaleDateString('en-US', {
+                          weekday: 'long',
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })
+                      : <span className="text-gray-400 italic">Never contacted</span>
+                    }
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Address Information */}
+          {(prospect.street_address || prospect.city || prospect.state || prospect.zipcode) && (
+            <div>
+              <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
+                <IconBuilding size={20} className="text-gray-600" />
+                Address
+              </h3>
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <div className="text-gray-900">
+                  {prospect.street_address && (
+                    <p className="font-medium">{prospect.street_address}</p>
+                  )}
+                  {(prospect.city || prospect.state || prospect.zipcode) && (
+                    <p>
+                      {[prospect.city, prospect.state].filter(Boolean).join(', ')}
+                      {prospect.zipcode && ` ${prospect.zipcode}`}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Notes */}
+          {prospect.notes && (
+            <div>
+              <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
+                <IconNotes size={20} className="text-gray-600" />
+                Notes
+              </h3>
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <p className="text-gray-900 whitespace-pre-wrap">{prospect.notes}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Timeline Info */}
+          <div>
+            <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
+              <IconClock size={20} className="text-gray-600" />
+              Timeline
+            </h3>
+            <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Added to system:</span>
+                <span className="text-gray-900 font-medium">
+                  {new Date(prospect.created_at).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </span>
+              </div>
+              {prospect.updated_at !== prospect.created_at && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Last updated:</span>
+                  <span className="text-gray-900 font-medium">
+                    {new Date(prospect.updated_at).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+        
+        <div className="flex items-center justify-between gap-4 p-6 border-t border-gray-200 bg-gray-50">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-6 py-2 text-gray-600 hover:text-gray-900 transition-colors"
+          >
+            Close
+          </button>
+          <button
+            type="button"
+            onClick={onEdit}
+            className="flex items-center gap-2 px-6 py-2 bg-[#ADD8E6] text-gray-900 rounded-lg hover:bg-[#9CC5D4] transition-colors font-medium"
+          >
+            <IconEdit size={18} />
+            Edit Prospect
+          </button>
+        </div>
       </div>
     </div>
   );

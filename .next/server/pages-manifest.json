@@ -4,5 +4,5 @@
   "/_document": "pages/_document.js",
   "/admin/prospective-clients": "pages/admin/prospective-clients.js",
   "/admin/clients": "pages/admin/clients.js",
-  "/admin": "pages/admin.js"
+  "/admin/menu-items": "pages/admin/menu-items.js"
 }
