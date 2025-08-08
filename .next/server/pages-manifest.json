@@ -2,7 +2,7 @@
   "/_app": "pages/_app.js",
   "/_error": "pages/_error.js",
   "/_document": "pages/_document.js",
-  "/admin/prospective-clients": "pages/admin/prospective-clients.js",
-  "/admin/clients": "pages/admin/clients.js",
-  "/admin/menu-items": "pages/admin/menu-items.js"
+  "/admin": "pages/admin.js",
+  "/admin/analytics": "pages/admin/analytics.js",
+  "/admin/activity": "pages/admin/activity.js"
 }

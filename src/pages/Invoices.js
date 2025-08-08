@@ -1,9 +1,10 @@
-// File: src/pages/Invoices.js - PRODUCTION VERSION
+// File: src/pages/Invoices.js - With External Activity Logger
 import React, { useState, useEffect } from "react";
 import styles from "./Invoices.module.css";
 import { useNavigate } from "react-router-dom";
 import supabase from "../supabaseClient";
 import Layout from "../components/Layout";
+import { logActivity, ACTIVITY_TYPES } from "../lib/activityLogger";
 
 export default function Invoices() {
   const [invoices, setInvoices] = useState([]);
@@ -15,11 +16,12 @@ export default function Invoices() {
   const [uploadProgress, setUploadProgress] = useState([]);
   const [confirmationMessage, setConfirmationMessage] = useState("");
   const [restaurantId, setRestaurantId] = useState(null);
+  const [restaurantName, setRestaurantName] = useState(null);
   const [dragActive, setDragActive] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
-    getRestaurantId();
+    getRestaurantInfo();
   }, []);
 
   useEffect(() => {
@@ -28,7 +30,7 @@ export default function Invoices() {
     }
   }, [restaurantId]);
 
-  async function getRestaurantId() {
+  async function getRestaurantInfo() {
     try {
       const {
         data: { user },
@@ -66,6 +68,17 @@ export default function Invoices() {
       }
 
       setRestaurantId(data.restaurant_id);
+
+      // Get restaurant name for activity logging
+      const { data: restaurantData, error: restaurantError } = await supabase
+        .from("restaurants")
+        .select("name")
+        .eq("id", data.restaurant_id)
+        .single();
+
+      if (!restaurantError && restaurantData) {
+        setRestaurantName(restaurantData.name);
+      }
     } catch (err) {
       setError("An unexpected error occurred");
       setLoading(false);
@@ -168,18 +181,39 @@ export default function Invoices() {
           .getPublicUrl(filePath).data.publicUrl;
 
         // Insert into database
-        const { error: insertError } = await supabase.from("invoices").insert([
-          {
-            restaurant_id: restaurantId,
-            file_url: publicURL,
-            // date, number, supplier, amount will be filled by admin
-          },
-        ]);
+        const { data: newInvoice, error: insertError } = await supabase
+          .from("invoices")
+          .insert([
+            {
+              restaurant_id: restaurantId,
+              file_url: publicURL,
+              // date, number, supplier, amount will be filled by admin
+            },
+          ])
+          .select()
+          .single();
 
         if (insertError) {
           console.error(`Failed to save ${file.name} metadata:`, insertError);
           return { success: false, fileName: file.name, error: insertError.message };
         }
+
+        // Log activity for successful upload
+        await logActivity({
+          activityType: ACTIVITY_TYPES.INVOICE_CREATED,
+          title: `New invoice uploaded: ${file.name}`,
+          subtitle: `File: ${file.name} • Size: ${(file.size / 1024 / 1024).toFixed(2)} MB`,
+          details: `Invoice uploaded by ${restaurantName || 'restaurant'} and pending admin review. File type: ${file.type}`,
+          restaurantId: restaurantId,
+          restaurantName: restaurantName,
+          metadata: {
+            invoice_id: newInvoice.id,
+            file_name: file.name,
+            file_size: file.size,
+            file_type: file.type,
+            file_url: publicURL
+          }
+        });
 
         // Update progress
         setUploadProgress(prev => {
@@ -188,7 +222,7 @@ export default function Invoices() {
           return newProgress;
         });
 
-        return { success: true, fileName: file.name };
+        return { success: true, fileName: file.name, invoiceId: newInvoice.id };
       } catch (error) {
         console.error(`Error processing ${file.name}:`, error);
         return { success: false, fileName: file.name, error: error.message };
@@ -202,12 +236,45 @@ export default function Invoices() {
     
     if (successCount > 0) {
       setConfirmationMessage(`${successCount} invoice(s) uploaded successfully!`);
+      
+      // Log bulk upload activity if multiple files
+      if (successCount > 1) {
+        await logActivity({
+          activityType: ACTIVITY_TYPES.INVOICE_CREATED,
+          title: `Bulk invoice upload completed`,
+          subtitle: `${successCount} invoices uploaded successfully`,
+          details: `Restaurant ${restaurantName || 'client'} uploaded ${successCount} invoices for admin processing`,
+          restaurantId: restaurantId,
+          restaurantName: restaurantName,
+          metadata: {
+            upload_count: successCount,
+            file_names: results.filter(r => r.success).map(r => r.fileName),
+            upload_session: Date.now()
+          }
+        });
+      }
+      
       fetchInvoices(); // Refresh the list
     }
     
     if (failureCount > 0) {
       const failedFiles = results.filter(r => !r.success).map(r => r.fileName);
       alert(`Failed to upload: ${failedFiles.join(', ')}`);
+      
+      // Log failed uploads
+      await logActivity({
+        activityType: ACTIVITY_TYPES.INVOICE_CREATED,
+        title: `Invoice upload failed`,
+        subtitle: `${failureCount} files failed to upload`,
+        details: `Failed uploads: ${failedFiles.join(', ')}`,
+        restaurantId: restaurantId,
+        restaurantName: restaurantName,
+        metadata: {
+          failed_count: failureCount,
+          failed_files: failedFiles,
+          error_session: Date.now()
+        }
+      });
     }
 
     // Reset form

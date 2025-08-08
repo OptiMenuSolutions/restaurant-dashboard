@@ -170,7 +170,7 @@ export default function AdminLayout({ children, pageTitle, pageDescription, page
                   <img 
                     src="/optimenu-logo.png" 
                     alt="OptiMenu Solutions" 
-                    className="h-12 w-auto"
+                    className="h-7 w-auto"
                   />
                 </div>
               ) : (

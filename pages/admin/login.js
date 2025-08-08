@@ -1,5 +1,5 @@
 // pages/admin/login.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import supabase from '../../lib/supabaseClient';
 
@@ -9,6 +9,17 @@ export default function AdminLogin() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
+
+  // Check if user is already logged in
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        router.replace('/admin'); // Use replace instead of push for better performance
+      }
+    };
+    checkUser();
+  }, [router]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -24,7 +35,8 @@ export default function AdminLogin() {
       if (error) throw error;
 
       if (data.user) {
-        router.push('/admin');
+        // Use replace instead of push to avoid going back to login
+        router.replace('/admin');
       }
     } catch (error) {
       setError(error.message);
@@ -68,6 +80,7 @@ export default function AdminLogin() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                autoComplete="email"
                 className="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition-colors"
                 placeholder="admin@example.com"
               />
@@ -83,6 +96,7 @@ export default function AdminLogin() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                autoComplete="current-password"
                 className="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition-colors"
                 placeholder="••••••••"
               />

@@ -21,6 +21,7 @@ import {
   IconClock,
   IconNotes,
 } from '@tabler/icons-react';
+import { logActivity, ACTIVITY_TYPES } from '../../lib/activityLogger';
 
 export default function ProspectiveClientManagement() {
   const router = useRouter();
@@ -70,12 +71,24 @@ export default function ProspectiveClientManagement() {
     }
 
     try {
+      // Get prospect info before deleting
+      const prospect = prospects.find(p => p.id === id);
+      
       const { error } = await supabase
         .from('prospective_clients')
         .delete()
         .eq('id', id);
 
       if (error) throw error;
+      
+      // Log activity
+      await logActivity({
+        activityType: ACTIVITY_TYPES.PROSPECT_DELETED,
+        title: `Prospect "${prospect?.restaurant_name}" removed`,
+        subtitle: `Contact: ${prospect?.contact_name || 'Not provided'}`,
+        details: `Removed from prospective clients pipeline`,
+        metadata: { prospect_id: id }
+      });
       
       setProspects(prev => prev.filter(p => p.id !== id));
       alert('Prospective client deleted successfully');
@@ -351,7 +364,10 @@ export default function ProspectiveClientManagement() {
                         <tr 
                           key={prospect.id} 
                           className="hover:bg-gray-50 cursor-pointer"
-                          onClick={() => setViewingProspect(prospect)}
+                          onClick={() => {
+                            console.log('Row clicked!', prospect.restaurant_name);
+                            setViewingProspect(prospect);
+                          }}
                         >
                           <td className="py-4 px-6">
                             <div className="flex items-center gap-3">
@@ -519,14 +535,20 @@ export default function ProspectiveClientManagement() {
                       <div className="flex gap-2">
                         <button
                           className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors text-sm"
-                          onClick={() => setEditingProspect(prospect)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingProspect(prospect);
+                          }}
                         >
                           <IconEdit size={16} />
                           Edit
                         </button>
                         <button
                           className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors text-sm"
-                          onClick={() => handleDelete(prospect.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(prospect.id);
+                          }}
                         >
                           <IconTrash size={16} />
                           Delete
@@ -552,19 +574,23 @@ export default function ProspectiveClientManagement() {
           onSave={fetchProspects}
         />
       )}
+
+      {/* View Modal */}
+      {viewingProspect && (
+        <>
+          {console.log('Rendering modal for:', viewingProspect.restaurant_name)}
+          <ViewProspectModal 
+            prospect={viewingProspect}
+            onClose={() => setViewingProspect(null)}
+            onEdit={() => {
+              setEditingProspect(viewingProspect);
+              setViewingProspect(null);
+            }}
+          />
+        </>
+      )}
     </AdminLayout>
   );
-      {/* View Modal */}
-    {viewingProspect && (
-      <ViewProspectModal 
-        prospect={viewingProspect}
-        onClose={() => setViewingProspect(null)}
-        onEdit={() => {
-          setEditingProspect(viewingProspect);
-          setViewingProspect(null);
-        }}
-      />
-    )}
 }
 
 // Modal Component for Add/Edit
@@ -634,14 +660,36 @@ function ProspectModal({ prospect, onClose, onSave }) {
           .eq('id', prospect.id);
 
         if (error) throw error;
+
+        // Log activity
+        await logActivity({
+          activityType: ACTIVITY_TYPES.PROSPECT_UPDATED,
+          title: `Prospect "${submitData.restaurant_name}" updated`,
+          subtitle: `Contact: ${submitData.contact_name || 'Not provided'} • ${submitData.city || 'Location not set'}`,
+          details: `Updated prospect information including ${Object.keys(submitData).filter(key => submitData[key]).join(', ')}`,
+          metadata: { prospect_id: prospect.id }
+        });
+
         alert('Prospect updated successfully');
       } else {
         // Create new prospect
-        const { error } = await supabase
+        const { data: newProspect, error } = await supabase
           .from('prospective_clients')
-          .insert([submitData]);
+          .insert([submitData])
+          .select()
+          .single();
 
         if (error) throw error;
+
+        // Log activity
+        await logActivity({
+          activityType: ACTIVITY_TYPES.PROSPECT_CREATED,
+          title: `New prospect "${submitData.restaurant_name}" added`,
+          subtitle: `Contact: ${submitData.contact_name || 'Not provided'} • ${submitData.phone_number || 'No phone'}`,
+          details: `Added to prospective clients pipeline with ${submitData.notes ? 'notes' : 'no notes'}`,
+          metadata: { prospect_id: newProspect.id }
+        });
+
         alert('Prospect added successfully');
       }
 
@@ -856,6 +904,7 @@ function ProspectModal({ prospect, onClose, onSave }) {
     </div>
   );
 }
+
 // View-Only Modal Component
 function ViewProspectModal({ prospect, onClose, onEdit }) {
   const needsFollowUp = !prospect.last_contacted_date || 
