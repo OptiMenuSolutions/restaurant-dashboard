@@ -20,6 +20,7 @@ import {
   IconRefresh,
   IconPlus,
   IconEye,
+  IconUserPlus,
 } from '@tabler/icons-react';
 
 export default function ClientManagement() {
@@ -215,6 +216,13 @@ export default function ClientManagement() {
             >
               <IconRefresh size={18} />
               Refresh
+            </button>
+            <button 
+              className="flex items-center gap-2 px-3 py-2 text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded-lg transition-colors"
+              onClick={() => router.push('/admin/prospective-clients')}
+            >
+              <IconUserPlus size={18} />
+              View Prospects
             </button>
           </div>
           <button 

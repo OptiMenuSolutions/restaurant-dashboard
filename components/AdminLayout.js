@@ -11,6 +11,7 @@ import {
   IconBook,
   IconSearch,
   IconUsers,
+  IconUserPlus,
   IconSettings,
   IconHelp,
   IconMenu2,
@@ -20,14 +21,31 @@ import {
 
 export default function AdminLayout({ children, pageTitle, pageDescription, pageIcon: PageIcon }) {
   const router = useRouter();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // Initialize sidebar state from localStorage immediately, with fallback to false
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    // Always start with false on server-side to prevent hydration mismatch
+    return false;
+  });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isClient, setIsClient] = useState(false);
 
-  // Auto-collapse sidebar on non-dashboard pages
+  // Handle client-side initialization
   useEffect(() => {
-    const isDashboard = router.pathname === '/admin' || router.pathname === '/admin/';
-    setSidebarCollapsed(!isDashboard);
-  }, [router.pathname]);
+    setIsClient(true);
+    const savedState = localStorage.getItem('sidebarCollapsed');
+    if (savedState !== null) {
+      setSidebarCollapsed(JSON.parse(savedState));
+    }
+  }, []);
+
+  // Save sidebar state to localStorage when it changes
+  const toggleSidebar = () => {
+    const newState = !sidebarCollapsed;
+    setSidebarCollapsed(newState);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('sidebarCollapsed', JSON.stringify(newState));
+    }
+  };
 
   async function handleSignOut() {
     await supabase.auth.signOut();
@@ -59,9 +77,7 @@ export default function AdminLayout({ children, pageTitle, pageDescription, page
         icon: IconTrendingUp,
         href: "/admin/analytics",
         active: router.pathname === '/admin/analytics'
-      }
-    ],
-    resources: [
+      },
       {
         title: "Ingredients",
         icon: IconBook,
@@ -73,12 +89,21 @@ export default function AdminLayout({ children, pageTitle, pageDescription, page
         icon: IconSearch,
         href: "/admin/menu-items",
         active: router.pathname === '/admin/menu-items'
-      },
+      }
+    ],
+    resources: [
+      
       {
         title: "Clients",
         icon: IconUsers,
         href: "/admin/clients",
         active: router.pathname === '/admin/clients'
+      },
+      {
+        title: "Prospective Clients",
+        icon: IconUserPlus,
+        href: "/admin/prospective-clients",
+        active: router.pathname === '/admin/prospective-clients'
       }
     ],
     secondary: [
@@ -138,26 +163,37 @@ export default function AdminLayout({ children, pageTitle, pageDescription, page
           lg:fixed lg:inset-y-0 lg:left-0 lg:translate-x-0
         `}>
           {/* Sidebar Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 h-[73px]">
+          <div className="flex items-center justify-between px-6 py-6 border-b border-gray-200">
             <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-8 h-8 text-[#ADD8E6]">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M3 12h18m-9-9v18"/>
-                </svg>
-              </div>
-              {!sidebarCollapsed && (
-                <div className="flex flex-col">
-                  <span className="font-semibold text-lg text-gray-900">OptiMenu</span>
-                  <span className="text-xs text-gray-500">Admin Portal</span>
+              {!sidebarCollapsed ? (
+                <div className="flex items-center">
+                  <img 
+                    src="/optimenu-logo.png" 
+                    alt="OptiMenu Solutions" 
+                    className="h-12 w-auto"
+                  />
                 </div>
+              ) : (
+                <button 
+                  onClick={toggleSidebar}
+                  className="flex items-center justify-center hover:opacity-80 transition-opacity"
+                >
+                  <img 
+                    src="/optimenu-logo-collapsed.png" 
+                    alt="OptiMenu" 
+                    className="h-12 w-12 object-contain"
+                  />
+                </button>
               )}
             </div>
-            <button
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              className="hidden lg:flex items-center justify-center w-8 h-8 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <IconChevronLeft size={16} className={`transition-transform ${sidebarCollapsed ? 'rotate-180' : ''}`} />
-            </button>
+            {!sidebarCollapsed && (
+              <button
+                onClick={toggleSidebar}
+                className="hidden lg:flex items-center justify-center w-8 h-8 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <IconChevronLeft size={16} className={`transition-transform ${sidebarCollapsed ? 'rotate-180' : ''}`} />
+              </button>
+            )}
             <button
               onClick={() => setMobileMenuOpen(false)}
               className="lg:hidden flex items-center justify-center w-8 h-8 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
@@ -246,7 +282,7 @@ export default function AdminLayout({ children, pageTitle, pageDescription, page
         {/* Main Content */}
         <div className={`flex-1 min-h-screen transition-all duration-300 ${sidebarCollapsed ? 'lg:pl-20' : 'lg:pl-72'}`}>
           {/* Header */}
-          <header className="bg-white border-b border-gray-200 px-6 py-4 shadow-sm sticky top-0 z-10 h-[73px] flex items-center">
+          <header className="bg-white border-b border-gray-200 px-6 py-6 shadow-sm sticky top-0 z-10 flex items-center">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <button
@@ -262,8 +298,8 @@ export default function AdminLayout({ children, pageTitle, pageDescription, page
                     </div>
                   )}
                   <div>
-                    <h1 className="text-2xl font-bold text-gray-900">{pageTitle}</h1>
-                    {pageDescription && <p className="text-gray-600">{pageDescription}</p>}
+                    <h1 className="text-3xl font-bold text-gray-900">{pageTitle}</h1>
+                    {pageDescription && <p className="text-lg text-gray-600 mt-1">{pageDescription}</p>}
                   </div>
                 </div>
               </div>
