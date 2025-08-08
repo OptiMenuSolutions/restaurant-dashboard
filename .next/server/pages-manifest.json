@@ -3,6 +3,5 @@
   "/_error": "pages/_error.js",
   "/_document": "pages/_document.js",
   "/client/login": "pages/client/login.js",
-  "/client/signup": "pages/client/signup.js",
   "/client/dashboard": "pages/client/dashboard.js"
 }

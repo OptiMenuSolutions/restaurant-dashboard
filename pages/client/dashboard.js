@@ -16,18 +16,19 @@ import {
   AreaChart,
 } from "recharts";
 import {
-  LayoutDashboard,
-  FileText,
-  BarChart3,
-  TrendingUp,
-  AlertTriangle,
-  DollarSign,
-  ChefHat,
-  ArrowRight,
-  Calendar,
-  Users,
-  ClipboardList,
-} from 'lucide-react';
+  IconDashboard,
+  IconFileText,
+  IconChartBar,
+  IconTrendingUp,
+  IconAlertTriangle,
+  IconCurrencyDollar,
+  IconChefHat,
+  IconArrowRight,
+  IconCalendar,
+  IconUsers,
+  IconClipboardList,
+} from '@tabler/icons-react';
+import ClientLayout from '../../components/ClientLayout';
 
 export default function ClientDashboard() {
   const [loading, setLoading] = useState(true);
@@ -365,42 +366,11 @@ export default function ClientDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Navigation Bar */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center justify-center w-10 h-10 bg-blue-600 rounded-lg">
-              <LayoutDashboard size={20} className="text-white" />
-            </div>
-            <div>
-              <h1 className="text-xl font-semibold text-gray-900">Cost Management Overview</h1>
-              <p className="text-sm text-gray-600">Monitor ingredient costs, track profit margins, and optimize menu pricing</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => router.push('/client/invoices')}
-              className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-            >
-              Invoices
-            </button>
-            <button
-              onClick={() => router.push('/client/menu-items')}
-              className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-            >
-              Menu Items
-            </button>
-            <button
-              onClick={() => router.push('/client/ingredients')}
-              className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-            >
-              Ingredients
-            </button>
-          </div>
-        </div>
-      </div>
-
+        <ClientLayout 
+        pageTitle="Cost Management Overview" 
+        pageDescription="Monitor ingredient costs, track profit margins, and optimize menu pricing"
+        pageIcon={IconDashboard}
+        >
       <div className="p-6 space-y-8">
         {/* Critical Alerts */}
         {dashboardData.lowMarginItems.length > 0 && (
@@ -408,7 +378,7 @@ export default function ClientDashboard() {
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
                 <div className="flex items-center justify-center w-10 h-10 bg-red-100 rounded-lg">
-                  <AlertTriangle size={20} className="text-red-600" />
+                  <IconAlertTriangle size={20} className="text-red-600" />
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900">Profit Margin Alerts</h3>
@@ -457,7 +427,7 @@ export default function ClientDashboard() {
                 </div>
               ))}
             </div>
-          </div>
+        </div>
         )}
 
         {/* Key Metrics Grid */}
@@ -468,7 +438,7 @@ export default function ClientDashboard() {
           >
             <div className="flex items-center gap-4">
               <div className="flex items-center justify-center w-12 h-12 bg-blue-100 rounded-lg">
-                <FileText size={24} className="text-blue-600" />
+                <IconFileText size={24} className="text-blue-600" />
               </div>
               <div className="flex-1">
                 <div className="text-2xl font-bold text-gray-900">{dashboardData.totalInvoices}</div>
@@ -479,7 +449,7 @@ export default function ClientDashboard() {
                   }
                 </div>
               </div>
-              <ArrowRight size={20} className="text-gray-400" />
+              <IconArrowRight size={20} className="text-gray-400" />
             </div>
           </div>
 
@@ -489,7 +459,7 @@ export default function ClientDashboard() {
           >
             <div className="flex items-center gap-4">
               <div className="flex items-center justify-center w-12 h-12 bg-green-100 rounded-lg">
-                <ClipboardList size={24} className="text-green-600" />
+                <IconClipboardList size={24} className="text-green-600" />
               </div>
               <div className="flex-1">
                 <div className="text-2xl font-bold text-gray-900">{dashboardData.totalIngredients}</div>
@@ -501,7 +471,7 @@ export default function ClientDashboard() {
                   }
                 </div>
               </div>
-              <ArrowRight size={20} className="text-gray-400" />
+              <IconArrowRight size={20} className="text-gray-400" />
             </div>
           </div>
 
@@ -511,7 +481,7 @@ export default function ClientDashboard() {
           >
             <div className="flex items-center gap-4">
               <div className="flex items-center justify-center w-12 h-12 bg-purple-100 rounded-lg">
-                <ChefHat size={24} className="text-purple-600" />
+                <IconChefHat size={24} className="text-purple-600" />
               </div>
               <div className="flex-1">
                 <div className="text-2xl font-bold text-gray-900">{dashboardData.totalMenuItems}</div>
@@ -523,14 +493,14 @@ export default function ClientDashboard() {
                   }
                 </div>
               </div>
-              <ArrowRight size={20} className="text-gray-400" />
+              <IconArrowRight size={20} className="text-gray-400" />
             </div>
           </div>
 
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
             <div className="flex items-center gap-4">
               <div className="flex items-center justify-center w-12 h-12 bg-yellow-100 rounded-lg">
-                <DollarSign size={24} className="text-yellow-600" />
+                <IconCurrencyDollar size={24} className="text-yellow-600" />
               </div>
               <div className="flex-1">
                 <div 
@@ -602,7 +572,7 @@ export default function ClientDashboard() {
                 </ResponsiveContainer>
               ) : (
                 <div className="h-full flex flex-col items-center justify-center text-gray-500">
-                  <TrendingUp size={48} className="mb-4" />
+                  <IconTrendingUp size={48} className="mb-4" />
                   <p className="font-medium">No spending data available</p>
                   <span className="text-sm">Process more invoices to see trends</span>
                 </div>
@@ -658,7 +628,7 @@ export default function ClientDashboard() {
                 </ResponsiveContainer>
               ) : (
                 <div className="h-full flex flex-col items-center justify-center text-gray-500">
-                  <BarChart3 size={48} className="mb-4" />
+                  <IconChartBar size={48} className="mb-4" />
                   <p className="font-medium">No ingredient pricing data</p>
                   <span className="text-sm">Process invoices to track costs</span>
                 </div>
@@ -688,7 +658,7 @@ export default function ClientDashboard() {
                     onClick={() => router.push(`/client/invoices/${invoice.id}`)}
                   >
                     <div className="flex items-center justify-center w-10 h-10 bg-blue-100 rounded-lg">
-                      <FileText size={16} className="text-blue-600" />
+                      <IconFileText size={16} className="text-blue-600" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
@@ -700,12 +670,12 @@ export default function ClientDashboard() {
                         <span>{formatDate(invoice.date)}</span>
                       </div>
                     </div>
-                    <ArrowRight size={16} className="text-gray-400" />
+                    <IconArrowRight size={16} className="text-gray-400" />
                   </div>
                 ))
               ) : (
                 <div className="text-center py-8 text-gray-500">
-                  <FileText size={48} className="mx-auto mb-4" />
+                  <IconFileText size={48} className="mx-auto mb-4" />
                   <p className="font-medium">No recent invoices</p>
                   <span className="text-sm">Upload invoices to see activity</span>
                 </div>
@@ -736,7 +706,7 @@ export default function ClientDashboard() {
                       onClick={() => router.push(`/client/menu-items/${item.id}`)}
                     >
                       <div className="flex items-center justify-center w-10 h-10 bg-purple-100 rounded-lg">
-                        <ChefHat size={16} className="text-purple-600" />
+                        <IconChefHat size={16} className="text-purple-600" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
@@ -753,12 +723,12 @@ export default function ClientDashboard() {
                           <span>= {formatCurrencyDetailed(item.price - item.cost)}</span>
                         </div>
                       </div>
-                      <ArrowRight size={16} className="text-gray-400" />
+                      <IconArrowRight size={16} className="text-gray-400" />
                     </div>
                   ))
               ) : (
                 <div className="text-center py-8 text-gray-500">
-                  <ChefHat size={48} className="mx-auto mb-4" />
+                  <IconChefHat size={48} className="mx-auto mb-4" />
                   <p className="font-medium">No menu items with pricing</p>
                   <span className="text-sm">Add menu items to track performance</span>
                 </div>
@@ -767,6 +737,6 @@ export default function ClientDashboard() {
           </div>
         </div>
       </div>
-    </div>
+    </ClientLayout>
   );
 }
