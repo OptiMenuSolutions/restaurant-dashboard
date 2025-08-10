@@ -25,15 +25,10 @@ globalThis.__BUILD_MANIFEST = {
       "static/chunks/main.js",
       "static/chunks/pages/client/dashboard.js"
     ],
-    "/client/menu-items": [
+    "/client/invoices": [
       "static/chunks/webpack.js",
       "static/chunks/main.js",
-      "static/chunks/pages/client/menu-items.js"
-    ],
-    "/client/menu-items/[id]": [
-      "static/chunks/webpack.js",
-      "static/chunks/main.js",
-      "static/chunks/pages/client/menu-items/[id].js"
+      "static/chunks/pages/client/invoices.js"
     ]
   },
   "ampFirstPages": []

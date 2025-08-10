@@ -14,28 +14,16 @@ import {
   IconHelp,
   IconMenu2,
   IconX,
-  IconChevronLeft,
-  IconUser,
+  IconLogout,
 } from '@tabler/icons-react';
 
 export default function ClientLayout({ children, pageTitle, pageDescription, pageIcon: PageIcon }) {
   const router = useRouter();
-  // Initialize sidebar state from localStorage immediately, with fallback to false
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    // Always start with false on server-side to prevent hydration mismatch
-    return false;
-  });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [isClient, setIsClient] = useState(false);
+  const [hoveredItem, setHoveredItem] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
 
-  // Handle client-side initialization
   useEffect(() => {
-    setIsClient(true);
-    const savedState = localStorage.getItem('sidebarCollapsed');
-    if (savedState !== null) {
-      setSidebarCollapsed(JSON.parse(savedState));
-    }
     fetchUserProfile();
   }, []);
 
@@ -57,15 +45,6 @@ export default function ClientLayout({ children, pageTitle, pageDescription, pag
       console.error("Error fetching user profile:", err);
     }
   }
-
-  // Save sidebar state to localStorage when it changes
-  const toggleSidebar = () => {
-    const newState = !sidebarCollapsed;
-    setSidebarCollapsed(newState);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('sidebarCollapsed', JSON.stringify(newState));
-    }
-  };
 
   async function handleSignOut() {
     await supabase.auth.signOut();
@@ -121,33 +100,65 @@ export default function ClientLayout({ children, pageTitle, pageDescription, pag
     ]
   };
 
-  const NavItem = ({ item, collapsed = false }) => {
+  const NavItem = ({ item, index }) => {
     const IconComponent = item.icon;
+    const isHovered = hoveredItem === `main-${index}`;
     
     return (
-      <Link 
-        href={item.href}
+      <div className="relative">
+        <Link 
+          href={item.href}
+          className={`
+            flex items-center justify-center w-12 h-12 rounded-full transition-all duration-300 relative z-10
+            ${item.active 
+              ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/25' 
+              : 'text-gray-500 hover:text-gray-700 hover:bg-white hover:shadow-md'
+            }
+          `}
+          onMouseEnter={() => setHoveredItem(`main-${index}`)}
+          onMouseLeave={() => setHoveredItem(null)}
+        >
+          <IconComponent size={20} />
+        </Link>
+        
+        {/* Hover Label */}
+        {isHovered && (
+          <div className="absolute left-16 top-1/2 -translate-y-1/2 z-50 pointer-events-none">
+            <div className="bg-gray-900 text-white px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap shadow-lg">
+              {item.title}
+              <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1 w-2 h-2 bg-gray-900 rotate-45"></div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const SecondaryNavItem = ({ item, index, isLogout = false }) => {
+    const IconComponent = item.icon;
+    
+    const handleClick = (e) => {
+      if (isLogout) {
+        e.preventDefault();
+        handleSignOut();
+      } else {
+        router.push(item.href);
+      }
+    };
+    
+    return (
+      <button
+        onClick={handleClick}
         className={`
-          flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all duration-200
+          flex items-center justify-center w-12 h-12 rounded-full transition-all duration-300 relative z-10
           ${item.active 
-            ? 'bg-[#ADD8E6] text-gray-900 shadow-lg' 
-            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+            ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/25' 
+            : 'text-gray-500 hover:text-gray-700 hover:bg-white hover:shadow-md'
           }
-          ${collapsed ? 'justify-center' : ''}
         `}
       >
-        <IconComponent size={20} className="flex-shrink-0" />
-        {!collapsed && (
-          <>
-            <span className="font-medium">{item.title}</span>
-            {item.badge && (
-              <span className="ml-auto bg-red-500 text-white text-xs px-2 py-1 rounded-full">
-                {item.badge}
-              </span>
-            )}
-          </>
-        )}
-      </Link>
+        <IconComponent size={20} />
+      </button>
     );
   };
 
@@ -160,155 +171,86 @@ export default function ClientLayout({ children, pageTitle, pageDescription, pag
         .join('')
         .toUpperCase();
     }
-    return 'CL'; // Default to 'CL' for Client
+    return 'CL';
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900">
+    <div className="min-h-screen bg-gray-50">
       <div className="flex">
         {/* Sidebar */}
         <aside className={`
-          flex flex-col bg-white border-r border-gray-200 transition-all duration-300
-          ${sidebarCollapsed ? 'w-20' : 'w-72'}
-          ${mobileMenuOpen ? 'fixed inset-y-0 left-0 z-50 translate-x-0' : 'fixed inset-y-0 left-0 z-50 -translate-x-full'}
-          lg:fixed lg:inset-y-0 lg:left-0 lg:translate-x-0
+          fixed left-0 top-0 h-full w-20 bg-gray-50 z-40 flex flex-col items-center
+          ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
+          lg:translate-x-0
         `}>
-          {/* Sidebar Header */}
-          <div className="flex items-center justify-between px-6 py-6 border-b border-gray-200">
-            <div className="flex items-center gap-3">
-              {!sidebarCollapsed ? (
-                <div className="flex items-center">
-                  <img 
-                    src="/optimenu-logo.png" 
-                    alt="OptiMenu Solutions" 
-                    className="h-7 w-auto"
-                  />
-                </div>
-              ) : (
-                <button 
-                  onClick={toggleSidebar}
-                  className="flex items-center justify-center hover:opacity-80 transition-opacity"
-                >
-                  <img 
-                    src="/optimenu-logo-collapsed.png" 
-                    alt="OptiMenu" 
-                    className="h-12 w-12 object-contain"
-                  />
-                </button>
-              )}
+          {/* Logo */}
+          <div className="flex items-center justify-center w-16 h-20 mt-4">
+            <img 
+              src="/optimenu-logo-collapsed.png" 
+              alt="OptiMenu" 
+              className="h-10 w-10 object-contain"
+            />
+          </div>
+
+          {/* Main Navigation - Centered */}
+          <div className="flex-1 flex flex-col items-center justify-center">
+            <div className="flex flex-col items-center space-y-6 py-8">
+              {navigationData.main.map((item, index) => (
+                <NavItem key={index} item={item} index={index} />
+              ))}
             </div>
-            {!sidebarCollapsed && (
-              <button
-                onClick={toggleSidebar}
-                className="hidden lg:flex items-center justify-center w-8 h-8 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <IconChevronLeft size={16} className={`transition-transform ${sidebarCollapsed ? 'rotate-180' : ''}`} />
-              </button>
-            )}
-            <button
-              onClick={() => setMobileMenuOpen(false)}
-              className="lg:hidden flex items-center justify-center w-8 h-8 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <IconX size={16} />
-            </button>
           </div>
 
-          {/* Sidebar Content */}
-          <div className="flex-1 px-4 py-6 overflow-y-auto">
-            <nav className="space-y-8">
-              {/* Main Navigation */}
-              <div>
-                {!sidebarCollapsed && (
-                  <h3 className="px-3 mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    Restaurant Management
-                  </h3>
-                )}
-                <div className="space-y-1">
-                  {navigationData.main.map((item, index) => (
-                    <NavItem key={index} item={item} collapsed={sidebarCollapsed} />
-                  ))}
-                </div>
-              </div>
-
-              {/* Secondary Navigation */}
-              <div className="pt-8 border-t border-gray-200">
-                <div className="space-y-1">
-                  {navigationData.secondary.map((item, index) => (
-                    <NavItem key={index} item={item} collapsed={sidebarCollapsed} />
-                  ))}
-                </div>
-              </div>
-            </nav>
-          </div>
-
-          {/* Sidebar Footer */}
-          <div className="p-4 border-t border-gray-200">
-            <button 
-              onClick={handleSignOut}
-              className="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-gray-100 transition-colors"
-            >
-              <div className="flex items-center justify-center w-8 h-8 bg-[#ADD8E6] text-gray-900 rounded-full font-semibold text-sm">
-                {getUserInitials()}
-              </div>
-              {!sidebarCollapsed && (
-                <div className="flex flex-col items-start">
-                  <span className="text-sm font-medium text-gray-900">
-                    {userProfile?.full_name || 'Client User'}
-                  </span>
-                  <span className="text-xs text-gray-500">
-                    {userProfile?.restaurant_name || 'Restaurant Owner'}
-                  </span>
-                </div>
-              )}
-            </button>
-            {!sidebarCollapsed && (
-              <div className="mt-4 pt-4 border-t border-gray-200">
-                <div className="text-center">
-                  <div className="text-sm font-medium text-gray-900">OptiMenu<sup className="text-xs">©</sup></div>
-                  <div className="text-xs text-gray-500">All Rights Reserved 2025</div>
-                </div>
-              </div>
-            )}
+          {/* Secondary Navigation - Bottom */}
+          <div className="flex flex-col items-center space-y-4 pb-6">
+            {navigationData.secondary.map((item, index) => (
+              <SecondaryNavItem key={index} item={item} index={index} />
+            ))}
+            
+            {/* Logout Button */}
+            <SecondaryNavItem 
+              item={{ 
+                title: "Log Out", 
+                icon: IconLogout, 
+                href: "/logout", 
+                active: false 
+              }} 
+              index="logout" 
+              isLogout={true}
+            />
           </div>
         </aside>
+
+        {/* Mobile Menu Button */}
+        <button
+          onClick={() => setMobileMenuOpen(true)}
+          className="lg:hidden fixed top-6 left-6 z-50 flex items-center justify-center w-12 h-12 bg-white text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-xl shadow-lg transition-colors"
+        >
+          <IconMenu2 size={22} />
+        </button>
+
+        {/* Mobile Close Button */}
+        {mobileMenuOpen && (
+          <button
+            onClick={() => setMobileMenuOpen(false)}
+            className="lg:hidden fixed top-6 left-6 z-50 flex items-center justify-center w-12 h-12 bg-white text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-xl shadow-lg transition-colors"
+          >
+            <IconX size={22} />
+          </button>
+        )}
 
         {/* Mobile overlay */}
         {mobileMenuOpen && (
           <div 
-            className="fixed inset-0 bg-black bg-opacity-25 z-40 lg:hidden"
+            className="fixed inset-0 bg-black bg-opacity-25 z-30 lg:hidden"
             onClick={() => setMobileMenuOpen(false)}
           />
         )}
 
         {/* Main Content */}
-        <div className={`flex-1 min-h-screen transition-all duration-300 ${sidebarCollapsed ? 'lg:pl-20' : 'lg:pl-72'}`}>
-          {/* Header */}
-          <header className="bg-white border-b border-gray-200 px-6 py-6 shadow-sm sticky top-0 z-10 flex items-center">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={() => setMobileMenuOpen(true)}
-                  className="lg:hidden flex items-center justify-center w-10 h-10 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  <IconMenu2 size={20} />
-                </button>
-                <div className="flex items-center gap-3">
-                  {PageIcon && (
-                    <div className="flex items-center justify-center w-10 h-10 bg-blue-100 rounded-lg">
-                      <PageIcon size={20} className="text-blue-600" />
-                    </div>
-                  )}
-                  <div>
-                    <h1 className="text-3xl font-bold text-gray-900">{pageTitle}</h1>
-                    {pageDescription && <p className="text-lg text-gray-600 mt-1">{pageDescription}</p>}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </header>
-
+        <div className="flex-1 lg:pl-20">
           {/* Page Content */}
-          <main>
+          <main className="p-8 lg:px-12">
             {children}
           </main>
         </div>

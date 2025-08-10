@@ -24,9 +24,12 @@ import {
   IconCurrencyDollar,
   IconChefHat,
   IconArrowRight,
-  IconCalendar,
-  IconUsers,
   IconClipboardList,
+  IconBrain,
+  IconStar,
+  IconActivity,
+  IconSparkles,
+  IconTrendingDown,
 } from '@tabler/icons-react';
 import ClientLayout from '../../components/ClientLayout';
 
@@ -34,6 +37,7 @@ export default function ClientDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [restaurantId, setRestaurantId] = useState(null);
+  const [marginView, setMarginView] = useState("Highest-Margin"); // "Highest-Margin" or "Lowest-Margin"
   const [dashboardData, setDashboardData] = useState({
     totalInvoices: 0,
     totalIngredients: 0,
@@ -147,94 +151,51 @@ export default function ClientDashboard() {
     const totalIngredients = ingredients.length;
     const totalMenuItems = menuItems.length;
 
-    // Processing stats
     const processedInvoices = invoices.filter(inv => inv.number && inv.supplier && inv.amount);
     const pendingInvoices = invoices.filter(inv => !inv.number || !inv.supplier || !inv.amount);
-
-    // Total spending
     const totalSpending = processedInvoices.reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0);
+    const unpricedIngredients = ingredients.filter(ing => !ing.last_price || parseFloat(ing.last_price) === 0).length;
 
-    // Unpriced ingredients
-    const unpricedIngredients = ingredients.filter(ing => 
-      !ing.last_price || parseFloat(ing.last_price) === 0
-    ).length;
-
-    // Recent invoices (last 8)
-    const recentInvoices = processedInvoices.slice(0, 8).map(inv => ({
-      id: inv.id,
-      number: inv.number,
-      supplier: inv.supplier,
-      amount: inv.amount,
-      date: inv.date,
-      created_at: inv.created_at
+    const recentInvoices = processedInvoices.slice(0, 3).map(inv => ({
+      id: inv.id, number: inv.number, supplier: inv.supplier, amount: inv.amount, date: inv.date, created_at: inv.created_at
     }));
 
-    // Menu item analysis
     const menuItemAnalysis = menuItems.map(item => {
       const totalCost = calculateMenuItemCost(item);
       const price = parseFloat(item.price || 0);
       const margin = price > 0 ? ((price - totalCost) / price) * 100 : 0;
-      
-      return {
-        id: item.id,
-        name: item.name,
-        price,
-        cost: totalCost,
-        margin,
-        hasCompleteData: hasCompleteIngredientData(item)
-      };
+      return { id: item.id, name: item.name, price, cost: totalCost, margin, hasCompleteData: hasCompleteIngredientData(item) };
     });
 
-    // Low margin items
     const lowMarginItems = menuItemAnalysis
       .filter(item => item.hasCompleteData && item.price > 0 && item.margin < LOW_MARGIN_THRESHOLD)
       .sort((a, b) => a.margin - b.margin);
 
-    // Average margin
-    const itemsWithMargins = menuItemAnalysis.filter(item => 
-      item.hasCompleteData && item.price > 0
-    );
-    const averageMargin = itemsWithMargins.length > 0 
-      ? itemsWithMargins.reduce((sum, item) => sum + item.margin, 0) / itemsWithMargins.length
-      : 0;
+    const itemsWithMargins = menuItemAnalysis.filter(item => item.hasCompleteData && item.price > 0);
+    const averageMargin = itemsWithMargins.length > 0 ? itemsWithMargins.reduce((sum, item) => sum + item.margin, 0) / itemsWithMargins.length : 0;
 
-    // Monthly spending trend
     const monthlySpending = calculateMonthlySpending(processedInvoices);
 
-    // Top ingredients by cost
     const ingredientTrends = ingredients
       .filter(ing => ing.last_price > 0)
       .sort((a, b) => parseFloat(b.last_price) - parseFloat(a.last_price))
-      .slice(0, 6)
+      .slice(0, 3)
       .map(ing => ({
-        name: ing.name.length > 12 ? ing.name.substring(0, 12) + '...' : ing.name,
+        name: ing.name.length > 15 ? ing.name.substring(0, 15) + '...' : ing.name,
         fullName: ing.name,
         price: parseFloat(ing.last_price),
         unit: ing.unit
       }));
 
     return {
-      totalInvoices,
-      totalIngredients,
-      totalMenuItems,
-      lowMarginItems,
-      recentInvoices,
-      ingredientTrends,
-      menuItemAnalysis,
-      monthlySpending,
-      unpricedIngredients,
-      averageMargin,
-      totalSpending,
-      processingStats: {
-        processed: processedInvoices.length,
-        pending: pendingInvoices.length
-      }
+      totalInvoices, totalIngredients, totalMenuItems, lowMarginItems, recentInvoices,
+      ingredientTrends, menuItemAnalysis, monthlySpending, unpricedIngredients,
+      averageMargin, totalSpending, processingStats: { processed: processedInvoices.length, pending: pendingInvoices.length }
     };
   }
 
   function calculateMenuItemCost(menuItem) {
     if (!menuItem.menu_item_ingredients) return 0;
-    
     return menuItem.menu_item_ingredients.reduce((total, ingredient) => {
       const unitCost = parseFloat(ingredient.ingredients?.last_price || 0);
       const quantity = parseFloat(ingredient.quantity || 0);
@@ -243,80 +204,58 @@ export default function ClientDashboard() {
   }
 
   function hasCompleteIngredientData(menuItem) {
-    if (!menuItem.menu_item_ingredients || menuItem.menu_item_ingredients.length === 0) {
-      return false;
-    }
-    
+    if (!menuItem.menu_item_ingredients || menuItem.menu_item_ingredients.length === 0) return false;
     return menuItem.menu_item_ingredients.every(ingredient => 
       ingredient.ingredients?.last_price && parseFloat(ingredient.ingredients.last_price) > 0
     );
   }
 
   function calculateMonthlySpending(invoices) {
+    const currentYear = new Date().getFullYear();
     const monthlyTotals = {};
     
+    // Initialize all months of current year with zero
+    for (let month = 1; month <= 12; month++) {
+      const monthKey = `${currentYear}-${String(month).padStart(2, '0')}`;
+      const monthName = new Date(currentYear, month - 1).toLocaleDateString('en-US', { month: 'short' });
+      monthlyTotals[monthKey] = { month: monthName, total: 0, invoiceCount: 0 };
+    }
+    
+    // Add actual invoice data
     invoices.forEach(invoice => {
       if (invoice.date && invoice.amount) {
         const date = new Date(invoice.date);
-        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        const monthName = date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-        
-        if (!monthlyTotals[monthKey]) {
-          monthlyTotals[monthKey] = { month: monthName, total: 0, invoiceCount: 0 };
+        if (date.getFullYear() === currentYear) {
+          const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+          if (monthlyTotals[monthKey]) {
+            monthlyTotals[monthKey].total += parseFloat(invoice.amount);
+            monthlyTotals[monthKey].invoiceCount += 1;
+          }
         }
-        monthlyTotals[monthKey].total += parseFloat(invoice.amount);
-        monthlyTotals[monthKey].invoiceCount += 1;
       }
     });
 
-    return Object.values(monthlyTotals)
-      .sort((a, b) => a.month.localeCompare(b.month))
-      .slice(-6);
+    return Object.values(monthlyTotals).sort((a, b) => a.month.localeCompare(b.month));
   }
 
   function formatCurrency(amount) {
-    if (!amount || amount === null || amount === undefined) {
-      return "$0.00";
-    }
-    
+    if (!amount) return "$0";
     const numAmount = parseFloat(amount);
-    if (isNaN(numAmount)) {
-      return "$0.00";
-    }
-    
-    return numAmount.toLocaleString('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    });
+    if (isNaN(numAmount)) return "$0";
+    return numAmount.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 });
   }
 
   function formatCurrencyDetailed(amount) {
-    if (!amount || amount === null || amount === undefined) {
-      return "$0.00";
-    }
-    
+    if (!amount) return "$0.00";
     const numAmount = parseFloat(amount);
-    if (isNaN(numAmount)) {
-      return "$0.00";
-    }
-    
-    return numAmount.toLocaleString('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    });
+    if (isNaN(numAmount)) return "$0.00";
+    return numAmount.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
   function formatDate(dateString) {
     if (!dateString) return "N/A";
     try {
-      return new Date(dateString).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric'
-      });
+      return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     } catch {
       return "N/A";
     }
@@ -327,12 +266,6 @@ export default function ClientDashboard() {
     if (margin >= 40) return "#3b82f6"; 
     if (margin >= 25) return "#f59e0b";
     return "#ef4444";
-  }
-
-  function getAlertLevel(margin) {
-    if (margin < VERY_LOW_MARGIN_THRESHOLD) return "critical";
-    if (margin < LOW_MARGIN_THRESHOLD) return "warning";
-    return "normal";
   }
 
   if (loading) {
@@ -365,374 +298,342 @@ export default function ClientDashboard() {
     );
   }
 
+  const getMarginItems = () => {
+    const itemsWithMargins = dashboardData.menuItemAnalysis.filter(item => 
+      item.hasCompleteData && item.price > 0
+    );
+    
+    if (marginView === "Highest-Margin") {
+      return itemsWithMargins.sort((a, b) => b.margin - a.margin).slice(0, 3);
+    } else {
+      return itemsWithMargins.sort((a, b) => a.margin - b.margin).slice(0, 3);
+    }
+  };
+
   return (
-        <ClientLayout 
-        pageTitle="Cost Management Overview" 
-        pageDescription="Monitor ingredient costs, track profit margins, and optimize menu pricing"
-        pageIcon={IconDashboard}
-        >
-      <div className="p-6 space-y-8">
-        {/* Critical Alerts */}
-        {dashboardData.lowMarginItems.length > 0 && (
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div className="flex items-center justify-center w-10 h-10 bg-red-100 rounded-lg">
-                  <IconAlertTriangle size={20} className="text-red-600" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">Profit Margin Alerts</h3>
-                  <p className="text-sm text-gray-600">
-                    {dashboardData.lowMarginItems.length} item{dashboardData.lowMarginItems.length !== 1 ? 's' : ''} need attention
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {dashboardData.lowMarginItems.slice(0, 3).map(item => (
-                <div 
-                  key={item.id}
-                  className={`p-4 rounded-lg border cursor-pointer hover:shadow-md transition-all ${
-                    getAlertLevel(item.margin) === 'critical' ? 'border-red-300 bg-red-50' :
-                    getAlertLevel(item.margin) === 'warning' ? 'border-orange-300 bg-orange-50' :
-                    'border-gray-200 bg-white'
-                  }`}
-                  onClick={() => router.push(`/client/menu-items/${item.id}`)}
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-medium text-gray-900 truncate">{item.name}</h4>
-                    <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                      getAlertLevel(item.margin) === 'critical' ? 'bg-red-200 text-red-800' :
-                      getAlertLevel(item.margin) === 'warning' ? 'bg-orange-200 text-orange-800' :
-                      'bg-gray-200 text-gray-800'
-                    }`}>
-                      {item.margin.toFixed(1)}%
-                    </span>
-                  </div>
-                  <div className="space-y-1 text-sm text-gray-600">
-                    <div className="flex justify-between">
-                      <span>Price:</span>
-                      <span>{formatCurrencyDetailed(item.price)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Cost:</span>
-                      <span>{formatCurrencyDetailed(item.cost)}</span>
-                    </div>
-                  </div>
-                  <div className="mt-3 text-xs font-medium text-gray-700">
-                    {item.margin < VERY_LOW_MARGIN_THRESHOLD ? 
-                      "Critical - Review immediately" : 
-                      "Consider price adjustment"}
-                  </div>
-                </div>
-              ))}
-            </div>
+    <ClientLayout>
+      {/* Centered Search Bar at Very Top */}
+      <div className="flex justify-center mb-4">
+        <div className="relative w-96">
+          <input
+            type="text"
+            placeholder="Search invoices, ingredients, menu items..."
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-sm"
+          />
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
         </div>
-        )}
+      </div>
 
-        {/* Key Metrics Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div 
-            className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 cursor-pointer hover:shadow-md transition-all"
-            onClick={() => router.push('/client/invoices')}
-          >
-            <div className="flex items-center gap-4">
-              <div className="flex items-center justify-center w-12 h-12 bg-blue-100 rounded-lg">
-                <IconFileText size={24} className="text-blue-600" />
-              </div>
-              <div className="flex-1">
-                <div className="text-2xl font-bold text-gray-900">{dashboardData.totalInvoices}</div>
-                <div className="text-sm font-medium text-gray-700">Total Invoices</div>
-                <div className="text-xs text-gray-500">
-                  {dashboardData.processingStats.pending > 0 && 
-                    `${dashboardData.processingStats.pending} pending review`
-                  }
+      {/* Welcome Header */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Welcome Back, User!</h1>
+      </div>
+
+      {/* Dashboard Grid Layout */}
+      <div className="grid grid-cols-12 grid-rows-12 gap-4 h-[calc(100vh-160px)]">
+        
+        {/* AI Profit Score - Left column (2 wide, 12 tall) */}
+        <div className="col-span-2 row-span-12 bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex flex-col overflow-hidden">
+          <div className="text-center flex-shrink-0">
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <IconBrain size={16} className="text-blue-600" />
+              <h3 className="text-sm font-semibold text-gray-900">AI Profit Score</h3>
+            </div>
+            <p className="text-xs text-gray-500 mb-3">Daily optimization rating</p>
+          </div>
+          <div className="flex-1 flex items-center justify-center min-h-0">
+            <div className="relative w-32 h-32 sm:w-40 sm:h-40">
+              <svg className="w-full h-full transform -rotate-90" viewBox="0 0 200 200">
+                <circle
+                  cx="100"
+                  cy="100"
+                  r="90"
+                  stroke="#e5e7eb"
+                  strokeWidth="12"
+                  fill="transparent"
+                />
+                <circle
+                  cx="100"
+                  cy="100"
+                  r="90"
+                  stroke="#10b981"
+                  strokeWidth="12"
+                  fill="transparent"
+                  strokeDasharray={`${(87 / 100) * (2 * Math.PI * 90)} ${2 * Math.PI * 90}`}
+                  strokeLinecap="round"
+                  className="transition-all duration-1000 ease-out"
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="text-center">
+                  <div className="text-3xl sm:text-4xl font-bold text-gray-900">87</div>
+                  <div className="text-sm text-gray-500">Score</div>
                 </div>
               </div>
-              <IconArrowRight size={20} className="text-gray-400" />
             </div>
           </div>
+          <div className="text-center flex-shrink-0">
+            <div className="text-xs text-gray-600 mb-2 px-1">
+              Based on margin analysis and pricing optimization
+            </div>
+            <div className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+              Excellent
+            </div>
+          </div>
+        </div>
 
-          <div 
-            className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 cursor-pointer hover:shadow-md transition-all"
-            onClick={() => router.push('/client/ingredients')}
-          >
-            <div className="flex items-center gap-4">
-              <div className="flex items-center justify-center w-12 h-12 bg-green-100 rounded-lg">
-                <IconClipboardList size={24} className="text-green-600" />
+        {/* AI Daily Dish Recommendations - Top right (10 wide, 6 tall) */}
+        <div className="col-span-10 row-span-4 bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex flex-col overflow-hidden">
+          <div className="flex items-center gap-3 mb-3 flex-shrink-0">
+            <div className="flex items-center justify-center w-8 h-8 bg-gradient-to-br from-purple-100 to-pink-100 rounded-lg">
+              <IconSparkles size={16} className="text-purple-600" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900">AI Daily Dish Recommendations</h3>
+              <p className="text-xs text-gray-500">Optimized for profit and inventory turnover</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 flex-1 min-h-0">
+            <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-3 border border-green-100 flex flex-col justify-between overflow-hidden">
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center text-white text-xs font-bold">1</div>
+                  <span className="text-xs font-medium text-green-800">Top Pick</span>
+                </div>
+                <h4 className="font-semibold text-gray-900 mb-1 text-sm truncate">Caesar Salad</h4>
+                <p className="text-xs text-gray-600 mb-2">Fresh ingredients, 68% margin</p>
               </div>
-              <div className="flex-1">
-                <div className="text-2xl font-bold text-gray-900">{dashboardData.totalIngredients}</div>
-                <div className="text-sm font-medium text-gray-700">Ingredients</div>
-                <div className="text-xs text-gray-500">
-                  {dashboardData.unpricedIngredients > 0 ? 
-                    `${dashboardData.unpricedIngredients} need pricing` : 
-                    'All ingredients priced'
-                  }
+              <div className="text-xs font-medium text-green-700">Push today</div>
+            </div>
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-3 border border-blue-100 flex flex-col justify-between overflow-hidden">
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-bold">2</div>
+                  <span className="text-xs font-medium text-blue-800">High Profit</span>
+                </div>
+                <h4 className="font-semibold text-gray-900 mb-1 text-sm truncate">Grilled Salmon</h4>
+                <p className="text-xs text-gray-600 mb-2">Premium pricing, fast turnover</p>
+              </div>
+              <div className="text-xs font-medium text-blue-700">Recommend</div>
+            </div>
+            <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-lg p-3 border border-orange-100 flex flex-col justify-between overflow-hidden">
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-5 h-5 bg-orange-500 rounded-full flex items-center justify-center text-white text-xs font-bold">3</div>
+                  <span className="text-xs font-medium text-orange-800">Clear Stock</span>
+                </div>
+                <h4 className="font-semibold text-gray-900 mb-1 text-sm truncate">Pasta Carbonara</h4>
+                <p className="text-xs text-gray-600 mb-2">Ingredients aging, good margin</p>
+              </div>
+              <div className="text-xs font-medium text-orange-700">Move today</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Monthly Spending Chart - Top right (5 wide, 6 tall) */}
+        <div className="col-span-5 row-span-8 bg-white rounded-xl border border-gray-200 shadow-sm p-4 cursor-pointer hover:shadow-md transition-shadow flex flex-col overflow-hidden"
+             onClick={() => router.push('/client/invoices')}>
+          <div className="flex items-center justify-between mb-3 flex-shrink-0">
+            <h3 className="text-sm font-semibold text-gray-900">Monthly Spending</h3>
+            <IconArrowRight size={16} className="text-gray-400" />
+          </div>
+          <div className="flex-1 min-h-0 w-full">
+            {dashboardData.monthlySpending.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={dashboardData.monthlySpending} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                  <XAxis 
+                    dataKey="month" 
+                    stroke="#6b7280" 
+                    fontSize={10}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis 
+                    stroke="#6b7280" 
+                    fontSize={10}
+                    tickFormatter={(value) => `${(value/1000).toFixed(0)}k`}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <Tooltip 
+                    formatter={(value) => [formatCurrency(value), 'Total Spent']}
+                    contentStyle={{
+                      backgroundColor: 'white',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                      fontSize: '11px'
+                    }}
+                  />
+                  <Bar 
+                    dataKey="total" 
+                    fill="#3b82f6"
+                    radius={[2, 2, 0, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-gray-500">
+                <IconChartBar size={24} className="mb-2" />
+                <p className="text-xs">No spending data</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Menu Analysis - Top right (5 wide, 6 tall) */}
+        <div className="col-span-5 row-span-8 bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex flex-col overflow-hidden">
+          <div className="flex items-center justify-between mb-3 flex-shrink-0">
+            <h3 className="text-sm font-semibold text-gray-900">Menu Analysis</h3>
+            <div className="flex bg-gray-100 rounded-md p-0.5">
+              <button
+                onClick={() => setMarginView("Highest-Margin")}
+                className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                  marginView === "Highest-Margin" 
+                    ? 'bg-white text-gray-900 shadow-sm' 
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                High
+              </button>
+              <button
+                onClick={() => setMarginView("Lowest-Margin")}
+                className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                  marginView === "Lowest-Margin" 
+                    ? 'bg-white text-gray-900 shadow-sm' 
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Low
+              </button>
+            </div>
+          </div>
+          <div className="space-y-2 flex-1 overflow-y-auto">
+            {getMarginItems().slice(0, 4).map((item, index) => (
+              <div key={item.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg flex-shrink-0">
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-medium text-gray-900 text-sm truncate">{item.name}</h4>
+                  <p className="text-xs text-gray-500">{formatCurrencyDetailed(item.price)}</p>
+                </div>
+                <div className="text-right ml-2 flex-shrink-0">
+                  <div 
+                    className="font-semibold text-sm"
+                    style={{ color: getMarginColor(item.margin) }}
+                  >
+                    {item.margin.toFixed(1)}%
+                  </div>
                 </div>
               </div>
-              <IconArrowRight size={20} className="text-gray-400" />
-            </div>
+            ))}
           </div>
+        </div>
 
-          <div 
-            className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 cursor-pointer hover:shadow-md transition-all"
-            onClick={() => router.push('/client/menu-items')}
-          >
-            <div className="flex items-center gap-4">
-              <div className="flex items-center justify-center w-12 h-12 bg-purple-100 rounded-lg">
-                <IconChefHat size={24} className="text-purple-600" />
-              </div>
-              <div className="flex-1">
-                <div className="text-2xl font-bold text-gray-900">{dashboardData.totalMenuItems}</div>
-                <div className="text-sm font-medium text-gray-700">Menu Items</div>
-                <div className="text-xs text-gray-500">
-                  {dashboardData.lowMarginItems.length > 0 ? 
-                    `${dashboardData.lowMarginItems.length} low margin` : 
-                    'All items profitable'
-                  }
+        {/* Top Ingredient Costs - Bottom left (4 wide, 6 tall) */}
+        <div className="col-span-4 row-span-6 bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex flex-col overflow-hidden">
+          <h3 className="text-sm font-semibold text-gray-900 mb-3 flex-shrink-0">Top Ingredient Costs</h3>
+          <div className="space-y-2 flex-1 overflow-y-auto">
+            {dashboardData.ingredientTrends.map((ingredient, index) => (
+              <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg flex-shrink-0">
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-gray-900 text-sm truncate">{ingredient.fullName}</p>
+                  <p className="text-xs text-gray-500">per {ingredient.unit}</p>
+                </div>
+                <div className="text-right ml-2 flex-shrink-0">
+                  <p className="font-semibold text-gray-900 text-sm">{formatCurrencyDetailed(ingredient.price)}</p>
                 </div>
               </div>
-              <IconArrowRight size={20} className="text-gray-400" />
-            </div>
+            ))}
           </div>
+        </div>
 
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center justify-center w-12 h-12 bg-yellow-100 rounded-lg">
-                <IconCurrencyDollar size={24} className="text-yellow-600" />
+        {/* Recent Invoices - Bottom middle (4 wide, 6 tall) */}
+        <div className="col-span-4 row-span-6 bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex flex-col overflow-hidden">
+          <div className="flex items-center justify-between mb-3 flex-shrink-0">
+            <h3 className="text-sm font-semibold text-gray-900">Recent Invoices</h3>
+            <button 
+              onClick={() => router.push('/client/invoices')}
+              className="text-blue-600 hover:text-blue-700 text-xs font-medium flex-shrink-0"
+            >
+              View All
+            </button>
+          </div>
+          <div className="space-y-2 flex-1 overflow-y-auto">
+            {dashboardData.recentInvoices.slice(0, 6).map(invoice => (
+              <div key={invoice.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg flex-shrink-0">
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-gray-900 text-sm truncate">{invoice.number}</p>
+                  <p className="text-xs text-gray-500 truncate">{invoice.supplier}</p>
+                </div>
+                <div className="text-right ml-2 flex-shrink-0">
+                  <p className="font-semibold text-gray-900 text-sm">{formatCurrency(invoice.amount)}</p>
+                  <p className="text-xs text-gray-500">{formatDate(invoice.date)}</p>
+                </div>
               </div>
-              <div className="flex-1">
+            ))}
+          </div>
+        </div>
+
+        {/* Key Metrics - Bottom right (4 wide, 6 tall) */}
+        <div className="col-span-4 row-span-6 bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex flex-col overflow-hidden">
+          <h3 className="text-sm font-semibold text-gray-900 mb-3 flex-shrink-0">Key Metrics</h3>
+          <div className="grid grid-cols-2 gap-3 flex-1 min-h-0">
+            <div 
+              className="bg-blue-50 rounded-lg p-3 cursor-pointer hover:bg-blue-100 transition-colors flex flex-col justify-center overflow-hidden"
+              onClick={() => router.push('/client/invoices')}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <div className="flex items-center justify-center w-6 h-6 bg-blue-100 rounded flex-shrink-0">
+                  <IconFileText size={14} className="text-blue-600" />
+                </div>
+                <div className="text-lg font-bold text-gray-900 truncate">{dashboardData.totalInvoices}</div>
+              </div>
+              <div className="text-xs text-gray-600">Invoices</div>
+            </div>
+            
+            <div 
+              className="bg-green-50 rounded-lg p-3 cursor-pointer hover:bg-green-100 transition-colors flex flex-col justify-center overflow-hidden"
+              onClick={() => router.push('/client/ingredients')}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <div className="flex items-center justify-center w-6 h-6 bg-green-100 rounded flex-shrink-0">
+                  <IconClipboardList size={14} className="text-green-600" />
+                </div>
+                <div className="text-lg font-bold text-gray-900 truncate">{dashboardData.totalIngredients}</div>
+              </div>
+              <div className="text-xs text-gray-600">Ingredients</div>
+            </div>
+            
+            <div 
+              className="bg-purple-50 rounded-lg p-3 cursor-pointer hover:bg-purple-100 transition-colors flex flex-col justify-center overflow-hidden"
+              onClick={() => router.push('/client/menu-items')}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <div className="flex items-center justify-center w-6 h-6 bg-purple-100 rounded flex-shrink-0">
+                  <IconChefHat size={14} className="text-purple-600" />
+                </div>
+                <div className="text-lg font-bold text-gray-900 truncate">{dashboardData.totalMenuItems}</div>
+              </div>
+              <div className="text-xs text-gray-600">Menu Items</div>
+            </div>
+            
+            <div className="bg-yellow-50 rounded-lg p-3 flex flex-col justify-center overflow-hidden">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="flex items-center justify-center w-6 h-6 bg-yellow-100 rounded flex-shrink-0">
+                  <IconCurrencyDollar size={14} className="text-yellow-600" />
+                </div>
                 <div 
-                  className="text-2xl font-bold"
+                  className="text-lg font-bold truncate"
                   style={{ color: getMarginColor(dashboardData.averageMargin) }}
                 >
                   {dashboardData.averageMargin.toFixed(1)}%
                 </div>
-                <div className="text-sm font-medium text-gray-700">Average Margin</div>
-                <div className="text-xs text-gray-500">
-                  {dashboardData.averageMargin >= 50 ? 'Excellent profitability' :
-                   dashboardData.averageMargin >= 35 ? 'Good profitability' :
-                   'Room for improvement'}
-                </div>
               </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Analytics Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold text-gray-900">Monthly Spending Trends</h3>
-              <p className="text-sm text-gray-600">Ingredient costs over the last 6 months</p>
-            </div>
-            <div style={{ height: '320px' }}>
-              {dashboardData.monthlySpending.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={dashboardData.monthlySpending}>
-                    <defs>
-                      <linearGradient id="spendingGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.05}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis 
-                      dataKey="month" 
-                      stroke="#6b7280" 
-                      fontSize={12}
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <YAxis 
-                      stroke="#6b7280" 
-                      fontSize={12}
-                      tickFormatter={(value) => `$${(value/1000).toFixed(0)}k`}
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <Tooltip 
-                      formatter={(value) => [formatCurrency(value), 'Total Spent']}
-                      contentStyle={{
-                        backgroundColor: 'white',
-                        border: '1px solid #e5e7eb',
-                        borderRadius: '8px',
-                        boxShadow: '0 10px 25px rgba(0,0,0,0.1)'
-                      }}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="total"
-                      stroke="#3b82f6"
-                      strokeWidth={3}
-                      fill="url(#spendingGradient)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-full flex flex-col items-center justify-center text-gray-500">
-                  <IconTrendingUp size={48} className="mb-4" />
-                  <p className="font-medium">No spending data available</p>
-                  <span className="text-sm">Process more invoices to see trends</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold text-gray-900">Top Ingredient Costs</h3>
-              <p className="text-sm text-gray-600">Most expensive ingredients per unit</p>
-            </div>
-            <div style={{ height: '320px' }}>
-              {dashboardData.ingredientTrends.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={dashboardData.ingredientTrends} margin={{ left: 20, right: 20 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis 
-                      dataKey="name" 
-                      stroke="#6b7280" 
-                      fontSize={11}
-                      tickLine={false}
-                      axisLine={false}
-                      angle={-45}
-                      textAnchor="end"
-                      height={60}
-                    />
-                    <YAxis 
-                      stroke="#6b7280" 
-                      fontSize={12}
-                      tickFormatter={(value) => `$${value.toFixed(0)}`}
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <Tooltip 
-                      formatter={(value, name, props) => [
-                        formatCurrencyDetailed(value), 
-                        `${props.payload.fullName} (per ${props.payload.unit})`
-                      ]}
-                      contentStyle={{
-                        backgroundColor: 'white',
-                        border: '1px solid #e5e7eb',
-                        borderRadius: '8px',
-                        boxShadow: '0 10px 25px rgba(0,0,0,0.1)'
-                      }}
-                    />
-                    <Bar 
-                      dataKey="price" 
-                      fill="#10b981"
-                      radius={[4, 4, 0, 0]}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-full flex flex-col items-center justify-center text-gray-500">
-                  <IconChartBar size={48} className="mb-4" />
-                  <p className="font-medium">No ingredient pricing data</p>
-                  <span className="text-sm">Process invoices to track costs</span>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Recent Activity */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold text-gray-900">Recent Invoice Activity</h3>
-              <button 
-                className="text-blue-600 hover:text-blue-700 text-sm font-medium"
-                onClick={() => router.push('/client/invoices')}
-              >
-                View All
-              </button>
-            </div>
-            <div className="space-y-3">
-              {dashboardData.recentInvoices.length > 0 ? (
-                dashboardData.recentInvoices.slice(0, 6).map(invoice => (
-                  <div 
-                    key={invoice.id}
-                    className="flex items-center gap-4 p-3 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
-                    onClick={() => router.push(`/client/invoices/${invoice.id}`)}
-                  >
-                    <div className="flex items-center justify-center w-10 h-10 bg-blue-100 rounded-lg">
-                      <IconFileText size={16} className="text-blue-600" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium text-gray-900 truncate">{invoice.number}</span>
-                        <span className="font-semibold text-gray-900">{formatCurrency(invoice.amount)}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-sm text-gray-500">
-                        <span className="truncate">{invoice.supplier}</span>
-                        <span>{formatDate(invoice.date)}</span>
-                      </div>
-                    </div>
-                    <IconArrowRight size={16} className="text-gray-400" />
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  <IconFileText size={48} className="mx-auto mb-4" />
-                  <p className="font-medium">No recent invoices</p>
-                  <span className="text-sm">Upload invoices to see activity</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold text-gray-900">Menu Performance</h3>
-              <button 
-                className="text-blue-600 hover:text-blue-700 text-sm font-medium"
-                onClick={() => router.push('/client/menu-items')}
-              >
-                View All
-              </button>
-            </div>
-            <div className="space-y-3">
-              {dashboardData.menuItemAnalysis.length > 0 ? (
-                dashboardData.menuItemAnalysis
-                  .filter(item => item.hasCompleteData && item.price > 0)
-                  .sort((a, b) => b.margin - a.margin)
-                  .slice(0, 6)
-                  .map(item => (
-                    <div 
-                      key={item.id}
-                      className="flex items-center gap-4 p-3 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
-                      onClick={() => router.push(`/client/menu-items/${item.id}`)}
-                    >
-                      <div className="flex items-center justify-center w-10 h-10 bg-purple-100 rounded-lg">
-                        <IconChefHat size={16} className="text-purple-600" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium text-gray-900 truncate">{item.name}</span>
-                          <span 
-                            className="font-semibold"
-                            style={{ color: getMarginColor(item.margin) }}
-                          >
-                            {item.margin.toFixed(1)}%
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between text-sm text-gray-500">
-                          <span>{formatCurrencyDetailed(item.price)} - {formatCurrencyDetailed(item.cost)}</span>
-                          <span>= {formatCurrencyDetailed(item.price - item.cost)}</span>
-                        </div>
-                      </div>
-                      <IconArrowRight size={16} className="text-gray-400" />
-                    </div>
-                  ))
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  <IconChefHat size={48} className="mx-auto mb-4" />
-                  <p className="font-medium">No menu items with pricing</p>
-                  <span className="text-sm">Add menu items to track performance</span>
-                </div>
-              )}
+              <div className="text-xs text-gray-600">Avg Margin</div>
             </div>
           </div>
         </div>
