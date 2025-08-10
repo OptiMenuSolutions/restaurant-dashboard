@@ -79,9 +79,27 @@ export default function MenuItems() {
           menu_item_ingredients (
             quantity,
             ingredients (
+              id,
               name,
               unit,
               last_price
+            )
+          ),
+          menu_item_components (
+            id,
+            name,
+            cost,
+            component_ingredients (
+              id,
+              quantity,
+              unit,
+              ingredients:ingredient_id (
+                id,
+                name,
+                last_price,
+                unit,
+                last_ordered_at
+              )
             )
           )
         `)
@@ -216,17 +234,47 @@ export default function MenuItems() {
   }
 
   function getIngredientCount(menuItem) {
-    return menuItem.menu_item_ingredients?.length || 0;
+    // Check if menu item uses components
+    if (menuItem.menu_item_components && menuItem.menu_item_components.length > 0) {
+      // Count unique ingredients across all components
+      const uniqueIngredientIds = new Set();
+      menuItem.menu_item_components.forEach(component => {
+        component.component_ingredients?.forEach(ingredient => {
+          if (ingredient.ingredients?.id) {
+            uniqueIngredientIds.add(ingredient.ingredients.id);
+          }
+        });
+      });
+      return uniqueIngredientIds.size;
+    } else {
+      // Fall back to original ingredients
+      return menuItem.menu_item_ingredients?.length || 0;
+    }
   }
 
   function hasIncompleteCosting(menuItem) {
-    if (!menuItem.menu_item_ingredients || menuItem.menu_item_ingredients.length === 0) {
-      return true;
+    // Check if menu item uses components
+    if (menuItem.menu_item_components && menuItem.menu_item_components.length > 0) {
+      // Check for missing prices in component ingredients
+      let hasMissingPrices = false;
+      menuItem.menu_item_components.forEach(component => {
+        component.component_ingredients?.forEach(ingredient => {
+          if (!ingredient.ingredients?.last_price || parseFloat(ingredient.ingredients.last_price) === 0) {
+            hasMissingPrices = true;
+          }
+        });
+      });
+      return hasMissingPrices;
+    } else {
+      // Fall back to checking original ingredients
+      if (!menuItem.menu_item_ingredients || menuItem.menu_item_ingredients.length === 0) {
+        return true;
+      }
+      
+      return menuItem.menu_item_ingredients.some(ingredient => 
+        !ingredient.ingredients?.last_price || parseFloat(ingredient.ingredients.last_price) === 0
+      );
     }
-    
-    return menuItem.menu_item_ingredients.some(ingredient => 
-      !ingredient.ingredients?.last_price || parseFloat(ingredient.ingredients.last_price) === 0
-    );
   }
 
   const filteredMenuItems = getFilteredAndSortedMenuItems();

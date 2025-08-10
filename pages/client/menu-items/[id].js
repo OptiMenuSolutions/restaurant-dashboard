@@ -173,6 +173,7 @@ export default function MenuItemDetail() {
 
             return {
               id: ing.id,
+              ingredientId: ingredient?.id, // This is the actual ingredient ID from the ingredients table
               name: ingredientName,
               quantity: recipeQuantity,
               unit: recipeUnit,
@@ -300,26 +301,6 @@ export default function MenuItemDetail() {
     setExpandedComponents(new Set(components.map(c => c.id)));
   }
 
-  function collapseAll() {
-    setExpandedComponents(new Set());
-  }
-
-  function calculateProfitMargin() {
-    const price = parseFloat(menuItem?.price || 0);
-    const cost = calculateTotalCost();
-    
-    if (price === 0) return null;
-    return ((price - cost) / price) * 100;
-  }
-
-  function getMarginColor(margin) {
-    if (margin === null || margin === undefined) return "text-gray-400";
-    if (margin >= 70) return "text-green-600 font-semibold";
-    if (margin >= 50) return "text-green-500 font-medium";
-    if (margin >= 30) return "text-yellow-600 font-medium";
-    return "text-red-500 font-semibold";
-  }
-
   function getMissingPriceIngredients() {
     // Check both components and regular ingredients
     let missingIngredients = [];
@@ -341,14 +322,47 @@ export default function MenuItemDetail() {
     return missingIngredients;
   }
 
+  function collapseAll() {
+    setExpandedComponents(new Set());
+  }
+
   function handleIngredientClick(ingredientId) {
     router.push(`/client/ingredients/${ingredientId}`);
   }
 
-  const totalCost = calculateTotalCost();
-  const profitMargin = calculateProfitMargin();
-  const marginColorClass = getMarginColor(profitMargin);
-  const missingPriceIngredients = getMissingPriceIngredients();
+  function calculateProfitMargin() {
+    const price = parseFloat(menuItem?.price || 0);
+    const cost = calculateTotalCost();
+    
+    if (price === 0) return null;
+    return ((price - cost) / price) * 100;
+  }
+
+  function getMarginColor(margin) {
+    if (margin === null || margin === undefined) return "text-gray-400";
+    if (margin >= 70) return "text-green-600 font-semibold";
+    if (margin >= 50) return "text-green-500 font-medium";
+    if (margin >= 30) return "text-yellow-600 font-medium";
+    return "text-red-500 font-semibold";
+  }
+
+  function getUniqueIngredientCount() {
+    if (components.length > 0) {
+      // Get all unique ingredient IDs across all components
+      const uniqueIngredientIds = new Set();
+      components.forEach(component => {
+        component.ingredients.forEach(ingredient => {
+          if (ingredient.ingredientId) {
+            uniqueIngredientIds.add(ingredient.ingredientId);
+          }
+        });
+      });
+      
+      return uniqueIngredientIds.size;
+    } else {
+      return ingredients.length;
+    }
+  }
 
   if (loading) {
     return (
@@ -431,6 +445,14 @@ export default function MenuItemDetail() {
       pageDescription="Menu item details and cost breakdown"
       pageIcon={IconChefHat}
     >
+      {(() => {
+      const totalCost = calculateTotalCost();
+      const profitMargin = calculateProfitMargin();
+      const marginColorClass = getMarginColor(profitMargin);
+      const missingPriceIngredients = getMissingPriceIngredients();
+
+      return (
+        <>
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
@@ -508,10 +530,7 @@ export default function MenuItemDetail() {
               <div>
                 <p className="text-sm text-gray-500 mb-1">Ingredients</p>
                 <p className="text-xl font-bold text-gray-900">
-                  {components.length > 0 ? 
-                    components.reduce((total, comp) => total + comp.ingredientCount, 0) : 
-                    ingredients.length
-                  }
+                  {getUniqueIngredientCount()}
                 </p>
               </div>
             </div>
@@ -554,16 +573,16 @@ export default function MenuItemDetail() {
                   <div className="flex gap-2">
                     <button 
                       onClick={expandAll}
-                      className="flex items-center gap-1 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded-lg transition-colors"
+                      className="flex items-center gap-1 px-3 py-1.5 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded-md transition-colors"
                     >
-                      <IconEye size={16} />
+                      <IconEye size={14} />
                       Expand All
                     </button>
                     <button 
                       onClick={collapseAll}
-                      className="flex items-center gap-1 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded-lg transition-colors"
+                      className="flex items-center gap-1 px-3 py-1.5 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded-md transition-colors"
                     >
-                      <IconEyeOff size={16} />
+                      <IconEyeOff size={14} />
                       Collapse All
                     </button>
                   </div>
@@ -571,51 +590,51 @@ export default function MenuItemDetail() {
               </div>
             </div>
 
-            <div className="divide-y divide-gray-200">
+            <div className="p-6 space-y-4">
               {components.map(component => {
                 const isExpanded = expandedComponents.has(component.id);
                 const costDiscrepancy = Math.abs(component.storedCost - component.calculatedCost);
                 const hasDiscrepancy = costDiscrepancy > 0.01;
 
                 return (
-                  <div key={component.id}>
+                  <div key={component.id} className="border border-gray-200 rounded-lg overflow-hidden">
                     {/* Component Header */}
                     <div 
-                      className="px-6 py-4 hover:bg-gray-50 cursor-pointer transition-colors"
+                      className="bg-gray-50 px-4 py-3 cursor-pointer hover:bg-gray-100 transition-colors"
                       onClick={() => toggleComponent(component.id)}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          <button className="text-gray-400 hover:text-gray-600">
+                          <div className="text-gray-400">
                             {isExpanded ? (
-                              <IconChevronDown size={20} />
+                              <IconChevronDown size={18} />
                             ) : (
-                              <IconChevronRight size={20} />
+                              <IconChevronRight size={18} />
                             )}
-                          </button>
+                          </div>
                           <div>
-                            <h3 className="text-lg font-medium text-gray-900">{component.name}</h3>
-                            <div className="flex items-center gap-3 mt-1">
+                            <h3 className="font-semibold text-gray-900">{component.name}</h3>
+                            <div className="flex items-center gap-3 mt-0.5">
                               <span className="text-sm text-gray-500">
                                 {component.ingredientCount} ingredient{component.ingredientCount !== 1 ? 's' : ''}
                               </span>
                               {hasDiscrepancy && (
-                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                                  <IconExclamationCircle size={12} />
-                                  Cost mismatch
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-700">
+                                  <IconExclamationCircle size={10} />
+                                  Mismatch
                                 </span>
                               )}
                             </div>
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="text-lg font-semibold text-gray-900">
-                            ${component.calculatedCost.toFixed(4)}
+                          <div className="font-bold text-gray-900">
+                            ${component.calculatedCost.toFixed(2)}
                           </div>
-                          <div className="text-sm text-gray-500">
+                          <div className="text-xs text-gray-500">
                             {totalCost > 0 ? 
                               ((component.calculatedCost / totalCost) * 100).toFixed(1) : 0
-                            }%
+                            }% of total
                           </div>
                         </div>
                       </div>
@@ -623,77 +642,52 @@ export default function MenuItemDetail() {
 
                     {/* Expanded Ingredients */}
                     {isExpanded && (
-                      <div className="px-6 pb-4 bg-gray-50">
-                        <div className="overflow-x-auto">
-                          <table className="w-full">
-                            <thead>
-                              <tr className="border-b border-gray-200">
-                                <th className="text-left py-3 text-sm font-semibold text-gray-900">Ingredient</th>
-                                <th className="text-left py-3 text-sm font-semibold text-gray-900">Recipe Amount</th>
-                                <th className="text-left py-3 text-sm font-semibold text-gray-900">Unit Cost</th>
-                                <th className="text-left py-3 text-sm font-semibold text-gray-900">Total Cost</th>
-                                <th className="text-left py-3 text-sm font-semibold text-gray-900">Status</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-200">
-                              {component.ingredients.map(ingredient => (
-                                <tr key={ingredient.id} className="hover:bg-white">
-                                  <td className="py-3">
-                                    <div>
-                                      <div className="font-medium text-gray-900">{ingredient.name}</div>
+                      <div className="bg-white">
+                        <div className="px-4 py-3 space-y-3">
+                          {component.ingredients.map(ingredient => (
+                            <div key={ingredient.id} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0">
+                              <div className="flex-1">
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <span className="font-medium text-gray-900 text-sm">{ingredient.name}</span>
+                                    <div className="text-xs text-gray-500 mt-0.5">
+                                      {ingredient.quantity} {ingredient.unit}
                                       {ingredient.lastOrdered && (
-                                        <div className="text-xs text-gray-500">
-                                          Last ordered: {formatDate(ingredient.lastOrdered)}
-                                        </div>
+                                        <span className="ml-2">• Last ordered {formatDate(ingredient.lastOrdered)}</span>
                                       )}
                                     </div>
-                                  </td>
-                                  <td className="py-3 text-gray-900">
-                                    {ingredient.quantity} {ingredient.unit}
-                                  </td>
-                                  <td className="py-3">
-                                    {ingredient.hasPrice ? (
-                                      <div>
-                                        <div className="font-medium text-gray-900">
-                                          ${ingredient.unitCost.toFixed(4)}
-                                        </div>
-                                        <div className="text-xs text-gray-500">
-                                          per {ingredient.standardUnit}
-                                        </div>
-                                      </div>
-                                    ) : (
-                                      <span className="text-red-500 italic">No price data</span>
-                                    )}
-                                  </td>
-                                  <td className="py-3 font-medium text-gray-900">
-                                    ${ingredient.totalCost.toFixed(4)}
-                                  </td>
-                                  <td className="py-3">
-                                    {ingredient.hasPrice ? (
-                                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                        <IconCheck size={12} />
-                                        Priced
-                                      </span>
-                                    ) : (
-                                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                        <IconX size={12} />
-                                        No price
-                                      </span>
-                                    )}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                            <tfoot>
-                              <tr className="border-t border-gray-300 bg-white">
-                                <td colSpan="3" className="py-3 font-semibold text-gray-900">Component Total:</td>
-                                <td className="py-3 font-bold text-gray-900">
-                                  ${component.calculatedCost.toFixed(4)}
-                                </td>
-                                <td></td>
-                              </tr>
-                            </tfoot>
-                          </table>
+                                  </div>
+                                  <div className="text-right ml-4">
+                                    <div className="font-semibold text-gray-900 text-sm">
+                                      ${ingredient.totalCost.toFixed(3)}
+                                    </div>
+                                    <div className="text-xs text-gray-500">
+                                      {ingredient.hasPrice ? (
+                                        `${ingredient.unitCost.toFixed(3)}/${ingredient.standardUnit}`
+                                      ) : (
+                                        'No price'
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="ml-3">
+                                {ingredient.hasPrice ? (
+                                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                ) : (
+                                  <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        
+                        {/* Component Total */}
+                        <div className="bg-gray-50 px-4 py-2 border-t border-gray-200">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm font-medium text-gray-700">Component Total</span>
+                            <span className="font-bold text-gray-900">${component.calculatedCost.toFixed(2)}</span>
+                          </div>
                         </div>
                       </div>
                     )}
@@ -704,44 +698,57 @@ export default function MenuItemDetail() {
 
             {/* Summary Footer */}
             <div className="bg-gray-50 border-t border-gray-200 px-6 py-4">
-              <div className="flex justify-between items-center">
-                <span className="text-lg font-semibold text-gray-900">Total Food Cost:</span>
-                <span className="text-xl font-bold text-gray-900">${totalCost.toFixed(4)}</span>
-              </div>
-              {menuItem.price && (
-                <div className="flex justify-between items-center mt-2">
-                  <span className="text-lg font-semibold text-gray-900">Profit per Item:</span>
-                  <span className="text-xl font-bold text-green-600">
-                    {formatCurrency(parseFloat(menuItem.price) - totalCost)}
-                  </span>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="text-center">
+                  <div className="text-sm text-gray-500 mb-1">Total Food Cost</div>
+                  <div className="text-lg font-bold text-gray-900">${totalCost.toFixed(2)}</div>
                 </div>
-              )}
+                {menuItem.price && (
+                  <>
+                    <div className="text-center">
+                      <div className="text-sm text-gray-500 mb-1">Profit per Item</div>
+                      <div className="text-lg font-bold text-green-600">
+                        {formatCurrency(parseFloat(menuItem.price) - totalCost)}
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-sm text-gray-500 mb-1">Food Cost %</div>
+                      <div className={`text-lg font-bold ${
+                        ((totalCost / parseFloat(menuItem.price)) * 100) < 25 ? 'text-green-600' :
+                        ((totalCost / parseFloat(menuItem.price)) * 100) < 35 ? 'text-yellow-600' : 'text-red-600'
+                      }`}>
+                        {((totalCost / parseFloat(menuItem.price)) * 100).toFixed(1)}%
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
 
             {/* Cost Analysis */}
             <div className="bg-white border-t border-gray-200 px-6 py-4">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <IconTrendingUp size={20} />
-                Cost Analysis
+              <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <IconTrendingUp size={16} />
+                Pricing Recommendations
               </h3>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-700">Break-even price (30% food cost):</span>
-                  <span className="font-semibold text-gray-900">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="text-center p-3 bg-gray-50 rounded-lg">
+                  <div className="text-xs text-gray-500 mb-1">Break-even (30%)</div>
+                  <div className="font-semibold text-gray-900">
                     ${(totalCost / 0.30).toFixed(2)}
-                  </span>
+                  </div>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-700">Recommended price (25% food cost):</span>
-                  <span className="font-semibold text-green-600">
+                <div className="text-center p-3 bg-green-50 rounded-lg">
+                  <div className="text-xs text-gray-500 mb-1">Recommended (25%)</div>
+                  <div className="font-semibold text-green-700">
                     ${(totalCost / 0.25).toFixed(2)}
-                  </span>
+                  </div>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-700">Premium price (20% food cost):</span>
-                  <span className="font-semibold text-blue-600">
+                <div className="text-center p-3 bg-blue-50 rounded-lg">
+                  <div className="text-xs text-gray-500 mb-1">Premium (20%)</div>
+                  <div className="font-semibold text-blue-700">
                     ${(totalCost / 0.20).toFixed(2)}
-                  </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -923,6 +930,9 @@ export default function MenuItemDetail() {
           </div>
         )}
       </div>
+        </>
+      );
+    })()}
     </ClientLayout>
   );
 }
