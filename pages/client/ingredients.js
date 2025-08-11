@@ -4,19 +4,28 @@ import { useRouter } from "next/router";
 import ClientLayout from "../../components/ClientLayout";
 import supabase from "../../lib/supabaseClient";
 import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  ResponsiveContainer,
+} from "recharts";
+import {
   IconSearch,
   IconX,
-  IconSortAscending,
-  IconSortDescending,
+  IconChefHat,
+  IconAlertTriangle,
+  IconRefresh,
   IconCurrencyDollar,
   IconCalendar,
+  IconFileText,
+  IconSortAscending,
+  IconSortDescending,
+  IconBarChart,
+  IconActivity,
   IconPackage,
-  IconEye,
-  IconRefresh,
-  IconAlertTriangle,
-  IconChefHat,
-  IconTrendingUp,
-  IconClock,
 } from "@tabler/icons-react";
 
 export default function Ingredients() {
@@ -28,6 +37,10 @@ export default function Ingredients() {
   const [sortBy, setSortBy] = useState("name");
   const [sortOrder, setSortOrder] = useState("asc");
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedIngredient, setSelectedIngredient] = useState(null);
+  const [priceHistory, setPriceHistory] = useState([]);
+  const [purchaseHistory, setPurchaseHistory] = useState([]);
+  const [loadingDetail, setLoadingDetail] = useState(false);
 
   useEffect(() => {
     getRestaurantId();
@@ -92,6 +105,68 @@ export default function Ingredients() {
     }
   }
 
+  async function fetchIngredientDetail(ingredientId) {
+    try {
+      setLoadingDetail(true);
+      
+      // Fetch purchase history from invoice items (matching your working code)
+      const { data: historyData, error: historyError } = await supabase
+        .from("invoice_items")
+        .select(`
+          *,
+          invoices (
+            date,
+            supplier,
+            number
+          )
+        `)
+        .eq("ingredient_id", ingredientId)
+        .not("invoices.date", "is", null)
+        .order("invoices(date)", { ascending: false });
+
+      console.log('History data query result:', historyData, historyError); // Debug log
+
+      if (historyError) {
+        console.error('Error fetching history data:', historyError);
+        setPriceHistory([]);
+        setPurchaseHistory([]);
+        return;
+      }
+
+      if (historyData && historyData.length > 0) {
+        // Process price history for chart (chronological order for chart)
+        const chartData = historyData
+          .filter(item => item.invoices?.date && item.unit_cost > 0)
+          .map(item => ({
+            date: item.invoices.date,
+            price: parseFloat(item.unit_cost),
+            supplier: item.invoices.supplier || 'Unknown',
+            invoiceNumber: item.invoices.number || 'N/A',
+            quantity: item.quantity || 0
+          }))
+          .sort((a, b) => new Date(a.date) - new Date(b.date)); // Sort chronologically for chart
+
+        setPriceHistory(chartData);
+        setPurchaseHistory(historyData); // Keep original order (newest first) for purchase history
+      } else {
+        setPriceHistory([]);
+        setPurchaseHistory([]);
+      }
+
+    } catch (error) {
+      console.error('Error fetching ingredient detail:', error);
+      setPriceHistory([]);
+      setPurchaseHistory([]);
+    } finally {
+      setLoadingDetail(false);
+    }
+  }
+
+  function handleIngredientSelect(ingredient) {
+    setSelectedIngredient(ingredient);
+    fetchIngredientDetail(ingredient.id);
+  }
+
   function handleSort(column) {
     if (sortBy === column) {
       setSortOrder(prev => prev === "asc" ? "desc" : "asc");
@@ -99,10 +174,6 @@ export default function Ingredients() {
       setSortBy(column);
       setSortOrder("asc");
     }
-  }
-
-  function handleRowClick(id) {
-    router.push(`/client/ingredients/${id}`);
   }
 
   function formatCurrency(amount) {
@@ -184,29 +255,42 @@ export default function Ingredients() {
     setSearchTerm("");
   }
 
+  function calculateStats() {
+    if (!selectedIngredient || priceHistory.length === 0) {
+      return {
+        avgPrice: 0,
+        priceChange: 0,
+        totalPurchases: 0,
+        lastOrderDate: null
+      };
+    }
+
+    const prices = priceHistory.map(p => p.price);
+    const avgPrice = prices.reduce((sum, price) => sum + price, 0) / prices.length;
+    const firstPrice = prices[0];
+    const lastPrice = prices[prices.length - 1];
+    const priceChange = firstPrice ? ((lastPrice - firstPrice) / firstPrice) * 100 : 0;
+
+    return {
+      avgPrice,
+      priceChange,
+      totalPurchases: purchaseHistory.length,
+      lastOrderDate: purchaseHistory.length > 0 ? purchaseHistory[purchaseHistory.length - 1]?.invoices?.date : null
+    };
+  }
+
   const filteredIngredients = getFilteredAndSortedIngredients();
-
-  // Calculate stats
-  const ingredientsWithPricing = filteredIngredients.filter(i => i.last_price > 0).length;
-  const recentlyOrdered = filteredIngredients.filter(i => 
-    i.last_ordered_at && new Date(i.last_ordered_at) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-  ).length;
-
+  const stats = calculateStats();
 
   if (loading) {
     return (
-      <ClientLayout 
-        pageTitle="Ingredients" 
-        pageDescription="Monitor ingredient costs and availability"
-        pageIcon={IconChefHat}
-      >
-        <div className="p-6 flex items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <div className="w-10 h-10 border-3 border-gray-300 border-t-[#ADD8E6] rounded-full animate-spin"></div>
-            <div className="text-gray-600">Loading ingredients...</div>
-          </div>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">Loading Ingredients</h3>
+          <p className="text-gray-600">Fetching your ingredient data...</p>
         </div>
-      </ClientLayout>
+      </div>
     );
   }
 
@@ -225,7 +309,7 @@ export default function Ingredients() {
           <p className="text-gray-600 mb-6">{error}</p>
           <button 
             onClick={() => window.location.reload()} 
-            className="inline-flex items-center gap-2 px-6 py-3 bg-[#ADD8E6] text-gray-900 rounded-lg hover:bg-[#9CC5D4] transition-colors font-medium"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
           >
             <IconRefresh size={18} />
             Retry
@@ -241,314 +325,352 @@ export default function Ingredients() {
       pageDescription="Monitor ingredient costs and availability"
       pageIcon={IconChefHat}
     >
-      {/* Controls */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1 relative">
-            <IconSearch size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search ingredients by name or unit..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ADD8E6] focus:border-transparent"
-            />
-            {searchTerm && (
-              <button 
-                onClick={clearSearch} 
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <IconX size={16} />
-              </button>
-            )}
+      {/* Centered Search Bar */}
+      <div className="flex justify-center items-center gap-4 mb-6">
+        <div className="relative w-96">
+          <input
+            type="text"
+            placeholder="Search ingredients by name or unit..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-sm"
+          />
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <IconSearch size={16} className="text-gray-400" />
           </div>
+          {searchTerm && (
+            <button 
+              onClick={clearSearch} 
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <IconX size={16} />
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="p-6 space-y-6">
-        {/* Summary Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center justify-center w-12 h-12 bg-blue-100 rounded-lg">
-                <IconPackage size={24} className="text-blue-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900">{filteredIngredients.length}</p>
-                <p className="text-gray-600">Total Ingredients</p>
-              </div>
+      {/* Main Layout - Split View */}
+      <div className="flex gap-4 h-[calc(100vh-200px)]">
+        
+        {/* Ingredient List - Left Side (55% width) */}
+        <div className="w-[55%] bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col overflow-hidden">
+          {/* Header */}
+          <div className="p-4 border-b border-gray-200 flex-shrink-0 bg-gradient-to-r from-blue-50 to-indigo-50">
+            <h3 className="text-lg font-semibold text-gray-900">Ingredient List</h3>
+          </div>
+
+          {/* Table Header */}
+          <div className="grid grid-cols-4 gap-4 p-4 bg-gray-50 border-b border-gray-200 text-sm font-medium text-gray-900 flex-shrink-0">
+            <div 
+              className="cursor-pointer hover:text-blue-600 flex items-center gap-1"
+              onClick={() => handleSort("name")}
+            >
+              Name
+              {sortBy === "name" && (
+                sortOrder === "asc" ? <IconSortAscending size={14} /> : <IconSortDescending size={14} />
+              )}
+            </div>
+            <div 
+              className="cursor-pointer hover:text-blue-600 flex items-center gap-1"
+              onClick={() => handleSort("last_price")}
+            >
+              Latest Price
+              {sortBy === "last_price" && (
+                sortOrder === "asc" ? <IconSortAscending size={14} /> : <IconSortDescending size={14} />
+              )}
+            </div>
+            <div 
+              className="cursor-pointer hover:text-blue-600 flex items-center gap-1"
+              onClick={() => handleSort("unit")}
+            >
+              Unit
+              {sortBy === "unit" && (
+                sortOrder === "asc" ? <IconSortAscending size={14} /> : <IconSortDescending size={14} />
+              )}
+            </div>
+            <div 
+              className="cursor-pointer hover:text-blue-600 flex items-center gap-1"
+              onClick={() => handleSort("last_ordered_at")}
+            >
+              Last Ordered
+              {sortBy === "last_ordered_at" && (
+                sortOrder === "asc" ? <IconSortAscending size={14} /> : <IconSortDescending size={14} />
+              )}
             </div>
           </div>
 
-          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center justify-center w-12 h-12 bg-green-100 rounded-lg">
-                <IconCurrencyDollar size={24} className="text-green-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900">{ingredientsWithPricing}</p>
-                <p className="text-gray-600">With Pricing</p>
-                <p className="text-sm text-gray-500">
-                  {filteredIngredients.length > 0 ? Math.round((ingredientsWithPricing / filteredIngredients.length) * 100) : 0}% coverage
+          {/* Ingredient List Content */}
+          <div className="flex-1 overflow-y-auto">
+            {filteredIngredients.length === 0 ? (
+              <div className="text-center py-12">
+                <IconChefHat size={48} className="mx-auto mb-4 text-gray-300" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No Ingredients Found</h3>
+                <p className="text-gray-600 mb-6">
+                  {searchTerm 
+                    ? `No ingredients match "${searchTerm}"`
+                    : 'Ingredients will appear here after invoices are processed!'
+                  }
                 </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center justify-center w-12 h-12 bg-orange-100 rounded-lg">
-                <IconClock size={24} className="text-orange-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900">{recentlyOrdered}</p>
-                <p className="text-gray-600">Recent Orders</p>
-                <p className="text-sm text-gray-500">Last 30 days</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Ingredients Table */}
-        <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-          <div className="bg-gray-50 border-b border-gray-200 px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">🥬 Ingredient Database</h3>
-                <p className="text-gray-600">
-                  {filteredIngredients.length} ingredient{filteredIngredients.length !== 1 ? 's' : ''}
-                  {searchTerm && ` (filtered from ${ingredients.length})`}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {filteredIngredients.length === 0 ? (
-            <div className="text-center py-12">
-              {searchTerm ? (
-                <>
-                  <div className="flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mx-auto mb-6">
-                    <IconSearch size={32} className="text-gray-400" />
-                  </div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-4">No ingredients found</h3>
-                  <p className="text-gray-600 mb-6">No ingredients match your search term "{searchTerm}"</p>
-                  <button 
-                    onClick={clearSearch} 
-                    className="inline-flex items-center gap-2 px-6 py-3 bg-[#ADD8E6] text-gray-900 rounded-lg hover:bg-[#9CC5D4] transition-colors font-medium"
+                {searchTerm && (
+                  <button
+                    onClick={clearSearch}
+                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                   >
-                    <IconX size={18} />
-                    Clear search
+                    Clear Search
                   </button>
-                </>
-              ) : ingredients.length === 0 ? (
-                <>
-                  <div className="flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mx-auto mb-6">
-                    <IconChefHat size={32} className="text-gray-400" />
-                  </div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-4">No ingredients yet</h3>
-                  <p className="text-gray-600 mb-6">Ingredients will appear here after invoices are processed by the admin team.</p>
-                </>
-              ) : null}
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              {/* Desktop Table */}
-              <div className="hidden lg:block">
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b border-gray-200">
-                    <tr>
-                      <th 
-                        onClick={() => handleSort("name")}
-                        className="text-left py-4 px-6 text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-100"
-                      >
-                        <div className="flex items-center gap-2">
-                          Ingredient Name
-                          {sortBy === "name" && (
-                            sortOrder === "asc" ? <IconSortAscending size={16} /> : <IconSortDescending size={16} />
-                          )}
-                        </div>
-                      </th>
-                      <th 
-                        onClick={() => handleSort("last_price")}
-                        className="text-left py-4 px-6 text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-100"
-                      >
-                        <div className="flex items-center gap-2">
-                          Latest Cost
-                          {sortBy === "last_price" && (
-                            sortOrder === "asc" ? <IconSortAscending size={16} /> : <IconSortDescending size={16} />
-                          )}
-                        </div>
-                      </th>
-                      <th 
-                        onClick={() => handleSort("unit")}
-                        className="text-left py-4 px-6 text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-100"
-                      >
-                        <div className="flex items-center gap-2">
-                          Unit
-                          {sortBy === "unit" && (
-                            sortOrder === "asc" ? <IconSortAscending size={16} /> : <IconSortDescending size={16} />
-                          )}
-                        </div>
-                      </th>
-                      <th 
-                        onClick={() => handleSort("last_ordered_at")}
-                        className="text-left py-4 px-6 text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-100"
-                      >
-                        <div className="flex items-center gap-2">
-                          Last Ordered
-                          {sortBy === "last_ordered_at" && (
-                            sortOrder === "asc" ? <IconSortAscending size={16} /> : <IconSortDescending size={16} />
-                          )}
-                        </div>
-                      </th>
-                      <th className="text-left py-4 px-6 text-sm font-semibold text-gray-900">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {filteredIngredients.map((ingredient) => {
-                      const hasRecentPrice = ingredient.last_price && ingredient.last_price > 0;
-                      const isRecentlyOrdered = ingredient.last_ordered_at && 
-                        new Date(ingredient.last_ordered_at) > new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
-                      
-                      return (
-                        <tr
-                          key={ingredient.id}
-                          className="hover:bg-gray-50 cursor-pointer"
-                          onClick={() => handleRowClick(ingredient.id)}
-                        >
-                          <td className="py-4 px-6">
-                            <div className="flex items-center gap-3">
-                              <div className="flex items-center justify-center w-10 h-10 bg-green-100 rounded-lg">
-                                <IconChefHat size={18} className="text-green-600" />
-                              </div>
-                              <div>
-                                <div className="font-medium text-gray-900">
-                                  {ingredient.name || "Unnamed ingredient"}
-                                </div>
-                                {isRecentlyOrdered && (
-                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                    Recently ordered
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </td>
-                          
-                          <td className="py-4 px-6">
-                            <div className="flex items-center gap-2">
-                              <IconCurrencyDollar size={16} className="text-gray-400" />
-                              {hasRecentPrice ? (
-                                <span className="font-medium text-gray-900">
-                                  {formatCurrency(ingredient.last_price)}
-                                </span>
-                              ) : (
-                                <span className="text-gray-400 italic">No price data</span>
-                              )}
-                            </div>
-                          </td>
-                          
-                          <td className="py-4 px-6">
-                            <div className="flex items-center gap-2">
-                              <IconPackage size={16} className="text-gray-400" />
-                              <span className="text-gray-900">
-                                {ingredient.unit || "N/A"}
-                              </span>
-                            </div>
-                          </td>
-                          
-                          <td className="py-4 px-6">
-                            <div className="flex items-center gap-2">
-                              <IconCalendar size={16} className="text-gray-400" />
-                              <span className="text-gray-900">
-                                {formatDate(ingredient.last_ordered_at)}
-                              </span>
-                            </div>
-                          </td>
-                          
-                          <td className="py-4 px-6">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleRowClick(ingredient.id);
-                              }}
-                              className="flex items-center gap-1 px-3 py-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md transition-colors text-sm"
-                              title="View Details"
-                            >
-                              <IconEye size={16} />
-                              View
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                )}
               </div>
-
-              {/* Mobile Cards */}
-              <div className="lg:hidden">
-                {filteredIngredients.map((ingredient) => {
+            ) : (
+              <div className="space-y-1 p-2">
+                {filteredIngredients.map(ingredient => {
                   const hasRecentPrice = ingredient.last_price && ingredient.last_price > 0;
                   const isRecentlyOrdered = ingredient.last_ordered_at && 
-                    new Date(ingredient.last_ordered_at) > new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+                    new Date(ingredient.last_ordered_at) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
                   
                   return (
                     <div 
                       key={ingredient.id} 
-                      className="p-6 border-b border-gray-200 last:border-b-0 cursor-pointer hover:bg-gray-50"
-                      onClick={() => handleRowClick(ingredient.id)}
+                      className={`grid grid-cols-4 gap-4 p-3 rounded-lg cursor-pointer transition-all duration-200 ${
+                        selectedIngredient?.id === ingredient.id 
+                          ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-300 shadow-sm' 
+                          : 'hover:bg-gradient-to-r hover:from-gray-50 hover:to-blue-25 hover:shadow-sm'
+                      }`}
+                      onClick={() => handleIngredientSelect(ingredient)}
                     >
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="flex items-center gap-3">
-                          <div className="flex items-center justify-center w-12 h-12 bg-green-100 rounded-lg">
-                            <IconChefHat size={20} className="text-green-600" />
+                      <div className="truncate">
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 bg-blue-100 rounded flex items-center justify-center flex-shrink-0">
+                            <IconChefHat size={12} className="text-blue-600" />
                           </div>
-                          <div>
-                            <h3 className="font-semibold text-gray-900">
-                              {ingredient.name || "Unnamed ingredient"}
-                            </h3>
-                            <div className="text-sm text-gray-500">
-                              Unit: {ingredient.unit || "N/A"}
-                            </div>
-                          </div>
+                          <span className="text-sm font-medium text-gray-900 truncate">
+                            {ingredient.name || "Unnamed"}
+                          </span>
                         </div>
-                        
                         {isRecentlyOrdered && (
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          <span className="inline-block mt-1 px-1 py-0.5 bg-blue-100 text-blue-700 rounded text-xs">
                             Recent
                           </span>
                         )}
                       </div>
-                      
-                      <div className="grid grid-cols-2 gap-4 mb-4">
-                        <div>
-                          <div className="text-sm text-gray-500 mb-1">Latest Cost</div>
-                          <div className="text-sm font-medium text-gray-900">
-                            {hasRecentPrice ? formatCurrency(ingredient.last_price) : 'No price data'}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-sm text-gray-500 mb-1">Last Ordered</div>
-                          <div className="text-sm font-medium text-gray-900">
-                            {formatDate(ingredient.last_ordered_at)}
-                          </div>
-                        </div>
+                      <div className="truncate">
+                        <span className="text-sm text-gray-900">
+                          {hasRecentPrice ? formatCurrency(ingredient.last_price) : <span className="text-gray-400 italic">No price</span>}
+                        </span>
                       </div>
-                      
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRowClick(ingredient.id);
-                        }}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors text-sm"
-                      >
-                        <IconEye size={16} />
-                        View Details
-                      </button>
+                      <div className="truncate">
+                        <span className="text-sm text-gray-900">
+                          {ingredient.unit || <span className="text-gray-400 italic">N/A</span>}
+                        </span>
+                      </div>
+                      <div className="truncate">
+                        <span className="text-sm text-gray-900">
+                          {formatDate(ingredient.last_ordered_at)}
+                        </span>
+                      </div>
                     </div>
                   );
                 })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Ingredient Detail - Right Side (45% width) */}
+        <div className="w-[45%] bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col overflow-hidden">
+          {selectedIngredient ? (
+            <>
+              {/* Header */}
+              <div className="p-4 border-b border-gray-200 flex-shrink-0 bg-gradient-to-r from-emerald-50 to-teal-50">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-gray-900">Ingredient Detail</h3>
+                  <div className="flex items-center gap-2">
+                    <IconPackage size={16} className="text-emerald-600" />
+                    <span className="text-sm font-medium text-emerald-700">{selectedIngredient.unit || 'N/A'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Detail Content */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                {/* Ingredient Information */}
+                <div className="space-y-4">
+                  <h4 className="text-lg font-semibold text-gray-900 border-b-2 border-blue-200 pb-2">Ingredient Information</h4>
+                  <div className="bg-gradient-to-br from-gray-50 to-blue-50 p-4 rounded-lg">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="text-center">
+                        <div className="text-sm font-bold text-blue-700 mb-2">Name</div>
+                        <div className="text-sm text-gray-700">{selectedIngredient.name || "Unnamed Ingredient"}</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-sm font-bold text-blue-700 mb-2">Current Price</div>
+                        <div className="text-lg font-bold text-emerald-600">
+                          {selectedIngredient.last_price ? formatCurrency(selectedIngredient.last_price) : <span className="text-gray-400 italic">No price</span>}
+                        </div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-sm font-bold text-blue-700 mb-2">Unit</div>
+                        <div className="text-sm text-gray-700">{selectedIngredient.unit || "N/A"}</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-sm font-bold text-blue-700 mb-2">Last Ordered</div>
+                        <div className="text-sm text-gray-700">{formatDate(selectedIngredient.last_ordered_at)}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Statistics */}
+                <div className="space-y-4">
+                  <h4 className="text-lg font-semibold text-gray-900 border-b-2 border-emerald-200 pb-2">Statistics</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-blue-50 rounded-lg p-3 text-center">
+                      <div className="text-2xl font-bold text-blue-600">{stats.totalPurchases}</div>
+                      <div className="text-sm text-blue-700">Total Orders</div>
+                    </div>
+                    <div className="bg-emerald-50 rounded-lg p-3 text-center">
+                      <div className="text-2xl font-bold text-emerald-600">{formatCurrency(stats.avgPrice)}</div>
+                      <div className="text-sm text-emerald-700">Avg Price</div>
+                    </div>
+                    <div className={`rounded-lg p-3 text-center ${stats.priceChange >= 0 ? 'bg-red-50' : 'bg-green-50'}`}>
+                      <div className={`text-2xl font-bold ${stats.priceChange >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                        {stats.priceChange >= 0 ? '+' : ''}{stats.priceChange.toFixed(1)}%
+                      </div>
+                      <div className={`text-sm ${stats.priceChange >= 0 ? 'text-red-700' : 'text-green-700'}`}>Price Change</div>
+                    </div>
+                    <div className="bg-orange-50 rounded-lg p-3 text-center">
+                      <div className="text-lg font-bold text-orange-600">
+                        {stats.lastOrderDate ? formatDate(stats.lastOrderDate) : 'Never'}
+                      </div>
+                      <div className="text-sm text-orange-700">Last Order</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Price Chart */}
+                {loadingDetail ? (
+                  <div className="text-center py-8">
+                    <div className="w-8 h-8 border-4 border-gray-300 border-t-blue-600 rounded-full animate-spin mx-auto mb-2"></div>
+                    <span className="text-gray-600">Loading price history...</span>
+                  </div>
+                ) : priceHistory.length > 0 ? (
+                  <div className="space-y-4">
+                    <h4 className="text-lg font-semibold text-gray-900 border-b-2 border-purple-200 pb-2">Price History</h4>
+                    <div className="h-64 bg-gray-50 rounded-lg p-4">
+                      {typeof LineChart !== 'undefined' ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={priceHistory}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                            <XAxis 
+                              dataKey="date" 
+                              stroke="#6b7280" 
+                              fontSize={10}
+                              tickFormatter={(date) => new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            />
+                            <YAxis 
+                              stroke="#6b7280" 
+                              fontSize={10}
+                              tickFormatter={(value) => `${value.toFixed(2)}`}
+                            />
+                            <Tooltip 
+                              formatter={(value) => [`${parseFloat(value).toFixed(2)}`, 'Price']}
+                              labelFormatter={(date) => `Date: ${new Date(date).toLocaleDateString()}`}
+                              contentStyle={{
+                                backgroundColor: 'white',
+                                border: '1px solid #e5e7eb',
+                                borderRadius: '8px',
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                                fontSize: '12px'
+                              }}
+                            />
+                            <Line 
+                              type="monotone" 
+                              dataKey="price" 
+                              stroke="#10b981" 
+                              strokeWidth={2}
+                              dot={{ fill: '#10b981', strokeWidth: 2, r: 4 }}
+                              activeDot={{ r: 6, stroke: '#10b981', strokeWidth: 2 }}
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="flex items-center justify-center h-full">
+                          <div className="text-center">
+                            <IconBarChart size={48} className="mx-auto mb-4 text-gray-300" />
+                            <p className="text-gray-600">Chart library not available</p>
+                            <div className="mt-4 space-y-2">
+                              {priceHistory.map((item, index) => (
+                                <div key={index} className="flex justify-between text-sm">
+                                  <span>{formatDate(item.date)}</span>
+                                  <span className="font-medium">{formatCurrency(item.price)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <div className="w-12 h-12 bg-gray-100 rounded-full mx-auto mb-4 flex items-center justify-center">
+                      📊
+                    </div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No Price History</h3>
+                    <p className="text-gray-600">Price data will appear here once this ingredient is purchased.</p>
+                  </div>
+                )}
+
+                {/* Purchase History */}
+                {loadingDetail ? (
+                  <div className="text-center py-4">
+                    <span className="text-gray-600">Loading purchase history...</span>
+                  </div>
+                ) : purchaseHistory.length > 0 ? (
+                  <div className="space-y-4">
+                    <h4 className="text-lg font-semibold text-gray-900 border-b-2 border-orange-200 pb-2">Purchase History ({purchaseHistory.length})</h4>
+                    <div className="space-y-3 max-h-64 overflow-y-auto">
+                      {purchaseHistory.map((purchase, index) => (
+                        <div key={index} className="border border-gray-200 rounded-lg p-3 bg-gradient-to-r from-gray-50 to-blue-50 hover:from-gray-100 hover:to-blue-100 transition-all duration-200">
+                          <div className="flex justify-between items-start mb-2">
+                            <div className="flex-1">
+                              <div className="font-medium text-sm text-gray-900">
+                                Invoice: {purchase.invoices?.number || 'N/A'}
+                              </div>
+                              <div className="text-xs text-gray-600">
+                                {purchase.invoices?.supplier || 'Unknown Supplier'}
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="font-bold text-sm text-emerald-600">
+                                {formatCurrency(purchase.unit_cost)}
+                              </div>
+                              <div className="text-xs text-gray-600">
+                                Qty: {purchase.quantity || 'N/A'}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {formatDate(purchase.invoices?.date || purchase.created_at)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <IconFileText size={48} className="mx-auto mb-4 text-gray-300" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No Purchase History</h3>
+                    <p className="text-gray-600">Purchase records will appear here once this ingredient is ordered.</p>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center">
+                <IconChefHat size={64} className="mx-auto mb-4 text-gray-300" />
+                <h3 className="text-xl font-medium text-gray-900 mb-2">Select an Ingredient</h3>
+                <p className="text-gray-600">Choose an ingredient from the list to view its details and price history</p>
               </div>
             </div>
           )}

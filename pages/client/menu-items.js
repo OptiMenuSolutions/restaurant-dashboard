@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import ClientLayout from "../../components/ClientLayout";
 import supabase from "../../lib/supabaseClient";
+import { calculateStandardizedCost } from "/lib/standardizedUnits";
 import {
   IconSearch,
   IconX,
@@ -15,6 +16,17 @@ import {
   IconTrendingUp,
   IconClock,
   IconPackage,
+  IconRefresh,
+  IconArrowLeft,
+  IconCalendar,
+  IconChartLine,
+  IconClipboardList,
+  IconTrendingDown,
+  IconExclamationCircle,
+  IconChevronRight,
+  IconChevronDown,
+  IconEyeOff,
+  IconCheck,
 } from "@tabler/icons-react";
 
 export default function MenuItems() {
@@ -27,6 +39,13 @@ export default function MenuItems() {
   const [sortOrder, setSortOrder] = useState("asc");
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All");
+  
+  // Split view state
+  const [selectedMenuItem, setSelectedMenuItem] = useState(null);
+  const [selectedMenuItemData, setSelectedMenuItemData] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState("");
+  const [expandedComponents, setExpandedComponents] = useState(new Set());
 
   useEffect(() => {
     getRestaurantId();
@@ -37,6 +56,12 @@ export default function MenuItems() {
       fetchMenuItems();
     }
   }, [restaurantId]);
+
+  useEffect(() => {
+    if (selectedMenuItem && restaurantId) {
+      fetchMenuItemDetails(selectedMenuItem);
+    }
+  }, [selectedMenuItem, restaurantId]);
 
   async function getRestaurantId() {
     try {
@@ -119,6 +144,141 @@ export default function MenuItems() {
     }
   }
 
+  async function fetchMenuItemDetails(menuItemId) {
+    try {
+      setDetailLoading(true);
+      setDetailError("");
+
+      // Fetch menu item details
+      const { data: menuItemData, error: menuItemError } = await supabase
+        .from("menu_items")
+        .select("*")
+        .eq("id", menuItemId)
+        .eq("restaurant_id", restaurantId)
+        .single();
+
+      if (menuItemError) {
+        setDetailError("Failed to fetch menu item details");
+        return;
+      }
+
+      // Fetch ingredients and their details
+      const { data: ingredientsData, error: ingredientsError } = await supabase
+        .from("menu_item_ingredients")
+        .select(`
+          quantity,
+          ingredients (
+            id,
+            name,
+            unit,
+            last_price,
+            last_ordered_at
+          )
+        `)
+        .eq("menu_item_id", menuItemId);
+
+      // Fetch components with their ingredients
+      const { data: componentsData, error: componentsError } = await supabase
+        .from('menu_item_components')
+        .select(`
+          id,
+          name,
+          cost,
+          component_ingredients (
+            id,
+            quantity,
+            unit,
+            ingredients:ingredient_id (
+              id,
+              name,
+              last_price,
+              unit,
+              last_ordered_at
+            )
+          )
+        `)
+        .eq('menu_item_id', menuItemId)
+        .order('name');
+
+      // Fetch cost history
+      const { data: historyData, error: historyError } = await supabase
+        .from("menu_item_cost_history")
+        .select("*")
+        .eq("menu_item_id", menuItemId)
+        .order("created_at", { ascending: false })
+        .limit(10);
+
+      // Process components with calculated costs
+      let processedComponents = [];
+      if (!componentsError && componentsData) {
+        processedComponents = (componentsData || []).map(component => {
+          const processedIngredients = (component.component_ingredients || []).map(ing => {
+            const ingredient = ing.ingredients;
+            const recipeQuantity = ing.quantity;
+            const recipeUnit = ing.unit;
+            const ingredientCost = ingredient?.last_price || 0;
+            const ingredientName = ingredient?.name || 'Unknown';
+
+            let calculatedCost = 0;
+            if (ingredientCost > 0) {
+              try {
+                if (typeof calculateStandardizedCost === 'function') {
+                  calculatedCost = calculateStandardizedCost(
+                    recipeQuantity,
+                    recipeUnit,
+                    ingredientCost,
+                    ingredientName
+                  );
+                } else {
+                  calculatedCost = recipeQuantity * ingredientCost;
+                }
+              } catch (error) {
+                console.warn(`Cost calculation failed for ${ingredientName}:`, error);
+                calculatedCost = recipeQuantity * ingredientCost;
+              }
+            }
+
+            return {
+              id: ing.id,
+              ingredientId: ingredient?.id,
+              name: ingredientName,
+              quantity: recipeQuantity,
+              unit: recipeUnit,
+              unitCost: ingredientCost,
+              standardUnit: ingredient?.unit || 'unknown',
+              totalCost: calculatedCost,
+              lastOrdered: ingredient?.last_ordered_at,
+              hasPrice: ingredientCost > 0
+            };
+          });
+
+          const calculatedTotal = processedIngredients.reduce((sum, ing) => sum + ing.totalCost, 0);
+
+          return {
+            id: component.id,
+            name: component.name,
+            storedCost: component.cost || 0,
+            calculatedCost: calculatedTotal,
+            ingredients: processedIngredients,
+            ingredientCount: processedIngredients.length
+          };
+        });
+      }
+
+      setSelectedMenuItemData({
+        menuItem: menuItemData,
+        ingredients: ingredientsData || [],
+        components: processedComponents,
+        costHistory: historyData || []
+      });
+
+    } catch (err) {
+      setDetailError("An unexpected error occurred: " + err.message);
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
   function handleSort(column) {
     if (sortBy === column) {
       setSortOrder(prev => prev === "asc" ? "desc" : "asc");
@@ -128,8 +288,15 @@ export default function MenuItems() {
     }
   }
 
-  function handleRowClick(id) {
-    router.push(`/client/menu-items/${id}`);
+  function handleCardClick(id) {
+    setSelectedMenuItem(id);
+    setExpandedComponents(new Set()); // Reset expanded components
+  }
+
+  function handleCloseDetail() {
+    setSelectedMenuItem(null);
+    setSelectedMenuItemData(null);
+    setDetailError("");
   }
 
   function formatCurrency(amount) {
@@ -177,20 +344,16 @@ export default function MenuItems() {
   function getFilteredAndSortedMenuItems() {
     let filtered = menuItems;
 
-    // Apply search filter
     if (searchTerm) {
       filtered = menuItems.filter(item =>
         item.name?.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
-    // Apply category filter (if you add categories later)
     if (categoryFilter !== "All") {
-      // This is placeholder for future category functionality
-      // filtered = filtered.filter(item => item.category === categoryFilter);
+      // Placeholder for future category functionality
     }
 
-    // Apply sorting
     const sorted = [...filtered].sort((a, b) => {
       let valueA, valueB;
 
@@ -234,9 +397,7 @@ export default function MenuItems() {
   }
 
   function getIngredientCount(menuItem) {
-    // Check if menu item uses components
     if (menuItem.menu_item_components && menuItem.menu_item_components.length > 0) {
-      // Count unique ingredients across all components
       const uniqueIngredientIds = new Set();
       menuItem.menu_item_components.forEach(component => {
         component.component_ingredients?.forEach(ingredient => {
@@ -247,15 +408,12 @@ export default function MenuItems() {
       });
       return uniqueIngredientIds.size;
     } else {
-      // Fall back to original ingredients
       return menuItem.menu_item_ingredients?.length || 0;
     }
   }
 
   function hasIncompleteCosting(menuItem) {
-    // Check if menu item uses components
     if (menuItem.menu_item_components && menuItem.menu_item_components.length > 0) {
-      // Check for missing prices in component ingredients
       let hasMissingPrices = false;
       menuItem.menu_item_components.forEach(component => {
         component.component_ingredients?.forEach(ingredient => {
@@ -266,7 +424,6 @@ export default function MenuItems() {
       });
       return hasMissingPrices;
     } else {
-      // Fall back to checking original ingredients
       if (!menuItem.menu_item_ingredients || menuItem.menu_item_ingredients.length === 0) {
         return true;
       }
@@ -281,18 +438,13 @@ export default function MenuItems() {
 
   if (loading) {
     return (
-      <ClientLayout 
-        pageTitle="Menu Items" 
-        pageDescription="Monitor menu item costs and profitability"
-        pageIcon={IconChefHat}
-      >
-        <div className="p-6 flex items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <div className="w-10 h-10 border-3 border-gray-300 border-t-[#ADD8E6] rounded-full animate-spin"></div>
-            <div className="text-gray-600">Loading menu items...</div>
-          </div>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">Loading Menu Items</h3>
+          <p className="text-gray-600">Fetching your menu data...</p>
         </div>
-      </ClientLayout>
+      </div>
     );
   }
 
@@ -311,8 +463,9 @@ export default function MenuItems() {
           <p className="text-gray-600 mb-6">{error}</p>
           <button 
             onClick={() => window.location.reload()} 
-            className="inline-flex items-center gap-2 px-6 py-3 bg-[#ADD8E6] text-gray-900 rounded-lg hover:bg-[#9CC5D4] transition-colors font-medium"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
           >
+            <IconRefresh size={18} />
             Retry
           </button>
         </div>
@@ -326,301 +479,115 @@ export default function MenuItems() {
       pageDescription="Monitor menu item costs and profitability"
       pageIcon={IconChefHat}
     >
-      {/* Controls */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1 relative">
-            <IconSearch size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search menu items by name..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ADD8E6] focus:border-transparent"
-            />
-            {searchTerm && (
-              <button 
-                onClick={clearSearch} 
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <IconX size={16} />
-              </button>
-            )}
+      {/* Centered Search Bar */}
+      <div className="flex justify-center items-center gap-4 mb-6">
+        <div className="relative w-96">
+          <input
+            type="text"
+            placeholder="Search menu items by name..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-sm"
+          />
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <IconSearch size={16} className="text-gray-400" />
           </div>
+          {searchTerm && (
+            <button 
+              onClick={clearSearch} 
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <IconX size={16} />
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="p-6 space-y-6">
-        {/* Summary Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center justify-center w-12 h-12 bg-blue-100 rounded-lg">
-                <IconPackage size={24} className="text-blue-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900">
-                  {filteredMenuItems.filter(item => item.price && item.cost).length}
-                </p>
-                <p className="text-gray-600">Complete Pricing</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center justify-center w-12 h-12 bg-orange-100 rounded-lg">
-                <IconClock size={24} className="text-orange-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900">
-                  {filteredMenuItems.filter(item => hasIncompleteCosting(item)).length}
-                </p>
-                <p className="text-gray-600">Need Ingredient Pricing</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center justify-center w-12 h-12 bg-green-100 rounded-lg">
-                <IconCurrencyDollar size={24} className="text-green-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900">
-                  {formatCurrency(
-                    filteredMenuItems
-                      .filter(item => item.price)
-                      .reduce((sum, item) => sum + parseFloat(item.price), 0) / 
-                    (filteredMenuItems.filter(item => item.price).length || 1)
-                  )}
-                </p>
-                <p className="text-gray-600">Average Price</p>
-              </div>
-            </div>
-          </div>
+      {/* Sort Controls */}
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-lg font-semibold text-gray-900">
+          {filteredMenuItems.length} Menu Item{filteredMenuItems.length !== 1 ? 's' : ''}
+          {searchTerm && ` (filtered from ${menuItems.length})`}
+        </h2>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-gray-600">Sort by:</span>
+          <select 
+            value={`${sortBy}-${sortOrder}`}
+            onChange={(e) => {
+              const [field, direction] = e.target.value.split('-');
+              setSortBy(field);
+              setSortOrder(direction);
+            }}
+            className="border border-gray-300 rounded px-3 py-1 text-sm bg-white"
+          >
+            <option value="name-asc">Name (A-Z)</option>
+            <option value="name-desc">Name (Z-A)</option>
+            <option value="price-desc">Price (High to Low)</option>
+            <option value="price-asc">Price (Low to High)</option>
+            <option value="cost-desc">Cost (High to Low)</option>
+            <option value="cost-asc">Cost (Low to High)</option>
+            <option value="margin-desc">Margin (High to Low)</option>
+            <option value="margin-asc">Margin (Low to High)</option>
+          </select>
         </div>
+      </div>
 
-        {/* Menu Items Table */}
-        <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-          <div className="bg-gray-50 border-b border-gray-200 px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">🍽️ Menu Items</h3>
-                <p className="text-gray-600">
-                  {filteredMenuItems.length} item{filteredMenuItems.length !== 1 ? 's' : ''}
-                  {searchTerm && ` (filtered from ${menuItems.length})`}
-                </p>
+      {/* Main Content Area */}
+      <div className={`flex gap-6 transition-all duration-300`}>
+        {/* Left Panel - Menu Items List */}
+        <div className={`${selectedMenuItem ? 'w-1/2' : 'w-full'} transition-all duration-300`}>
+          {/* Menu Items Cards */}
+          <div className={`${selectedMenuItem ? 'overflow-y-auto h-[calc(100vh-140px)]' : ''}`}>
+            {filteredMenuItems.length === 0 ? (
+              <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
+                {searchTerm ? (
+                  <>
+                    <IconSearch size={48} className="mx-auto mb-4 text-gray-300" />
+                    <h3 className="text-xl font-semibold text-gray-900 mb-4">No menu items found</h3>
+                    <p className="text-gray-600 mb-6">No menu items match your search term "{searchTerm}"</p>
+                    <button 
+                      onClick={clearSearch} 
+                      className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                    >
+                      <IconX size={18} />
+                      Clear search
+                    </button>
+                  </>
+                ) : menuItems.length === 0 ? (
+                  <>
+                    <IconChefHat size={48} className="mx-auto mb-4 text-gray-300" />
+                    <h3 className="text-xl font-semibold text-gray-900 mb-4">No menu items yet</h3>
+                    <p className="text-gray-600 mb-6">Menu items will appear here when they are added to your restaurant.</p>
+                  </>
+                ) : null}
               </div>
-            </div>
-          </div>
-
-          {filteredMenuItems.length === 0 ? (
-            <div className="text-center py-12">
-              {searchTerm ? (
-                <>
-                  <div className="flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mx-auto mb-6">
-                    <IconSearch size={32} className="text-gray-400" />
-                  </div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-4">No menu items found</h3>
-                  <p className="text-gray-600 mb-6">No menu items match your search term "{searchTerm}"</p>
-                  <button 
-                    onClick={clearSearch} 
-                    className="inline-flex items-center gap-2 px-6 py-3 bg-[#ADD8E6] text-gray-900 rounded-lg hover:bg-[#9CC5D4] transition-colors font-medium"
-                  >
-                    <IconX size={18} />
-                    Clear search
-                  </button>
-                </>
-              ) : menuItems.length === 0 ? (
-                <>
-                  <div className="flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mx-auto mb-6">
-                    <IconChefHat size={32} className="text-gray-400" />
-                  </div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-4">No menu items yet</h3>
-                  <p className="text-gray-600 mb-6">Menu items will appear here when they are added to your restaurant.</p>
-                </>
-              ) : null}
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              {/* Desktop Table */}
-              <div className="hidden lg:block">
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b border-gray-200">
-                    <tr>
-                      <th 
-                        onClick={() => handleSort("name")}
-                        className="text-left py-4 px-6 text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-100"
-                      >
-                        <div className="flex items-center gap-2">
-                          Menu Item
-                          {sortBy === "name" && (
-                            sortOrder === "asc" ? <IconSortAscending size={16} /> : <IconSortDescending size={16} />
-                          )}
-                        </div>
-                      </th>
-                      <th 
-                        onClick={() => handleSort("price")}
-                        className="text-left py-4 px-6 text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-100"
-                      >
-                        <div className="flex items-center gap-2">
-                          Price
-                          {sortBy === "price" && (
-                            sortOrder === "asc" ? <IconSortAscending size={16} /> : <IconSortDescending size={16} />
-                          )}
-                        </div>
-                      </th>
-                      <th 
-                        onClick={() => handleSort("cost")}
-                        className="text-left py-4 px-6 text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-100"
-                      >
-                        <div className="flex items-center gap-2">
-                          Cost
-                          {sortBy === "cost" && (
-                            sortOrder === "asc" ? <IconSortAscending size={16} /> : <IconSortDescending size={16} />
-                          )}
-                        </div>
-                      </th>
-                      <th 
-                        onClick={() => handleSort("margin")}
-                        className="text-left py-4 px-6 text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-100"
-                      >
-                        <div className="flex items-center gap-2">
-                          Profit Margin
-                          {sortBy === "margin" && (
-                            sortOrder === "asc" ? <IconSortAscending size={16} /> : <IconSortDescending size={16} />
-                          )}
-                        </div>
-                      </th>
-                      <th className="text-left py-4 px-6 text-sm font-semibold text-gray-900">Ingredients</th>
-                      <th className="text-left py-4 px-6 text-sm font-semibold text-gray-900">Status</th>
-                      <th className="text-left py-4 px-6 text-sm font-semibold text-gray-900">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {filteredMenuItems.map((item) => {
-                      const marginColorClass = getMarginColor(item.price, item.cost);
-                      const ingredientCount = getIngredientCount(item);
-                      const hasIncompleteData = hasIncompleteCosting(item);
-                      
-                      return (
-                        <tr
-                          key={item.id}
-                          className="hover:bg-gray-50 cursor-pointer"
-                          onClick={() => handleRowClick(item.id)}
-                        >
-                          <td className="py-4 px-6">
-                            <div className="flex items-center gap-3">
-                              <div className="flex items-center justify-center w-10 h-10 bg-purple-100 rounded-lg">
-                                <span className="text-purple-600">🍽️</span>
-                              </div>
-                              <div>
-                                <div className="font-medium text-gray-900">
-                                  {item.name || "Unnamed item"}
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                          
-                          <td className="py-4 px-6">
-                            <div className="flex items-center gap-2">
-                              <IconCurrencyDollar size={16} className="text-gray-400" />
-                              {item.price ? (
-                                <span className="font-medium text-gray-900">
-                                  {formatCurrency(item.price)}
-                                </span>
-                              ) : (
-                                <span className="text-gray-400 italic">No price set</span>
-                              )}
-                            </div>
-                          </td>
-                          
-                          <td className="py-4 px-6">
-                            <div className="flex items-center gap-2">
-                              <IconCurrencyDollar size={16} className="text-gray-400" />
-                              {item.cost ? (
-                                <span className="font-medium text-gray-900">
-                                  {formatCurrency(item.cost)}
-                                </span>
-                              ) : (
-                                <span className="text-gray-400 italic">No cost data</span>
-                              )}
-                            </div>
-                          </td>
-                          
-                          <td className="py-4 px-6">
-                            <span className={marginColorClass}>
-                              {calculateMargin(item.price, item.cost)}
-                            </span>
-                          </td>
-                          
-                          <td className="py-4 px-6">
-                            <span className="text-gray-900">
-                              {ingredientCount} ingredient{ingredientCount !== 1 ? 's' : ''}
-                            </span>
-                          </td>
-                          
-                          <td className="py-4 px-6">
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                              hasIncompleteData ? 'bg-red-100 text-red-800' : 
-                              item.price && item.cost ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                            }`}>
-                              {hasIncompleteData ? "Incomplete" :
-                               item.price && item.cost ? "Complete" : "Partial"}
-                            </span>
-                          </td>
-                          
-                          <td className="py-4 px-6">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleRowClick(item.id);
-                              }}
-                              className="flex items-center gap-1 px-3 py-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md transition-colors text-sm"
-                              title="View Details"
-                            >
-                              <IconEye size={16} />
-                              View
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Mobile Cards */}
-              <div className="lg:hidden">
+            ) : (
+              <div className={`grid gap-6 ${selectedMenuItem ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'}`}>
                 {filteredMenuItems.map((item) => {
                   const marginColorClass = getMarginColor(item.price, item.cost);
                   const ingredientCount = getIngredientCount(item);
                   const hasIncompleteData = hasIncompleteCosting(item);
+                  const margin = calculateMargin(item.price, item.cost);
+                  const isSelected = selectedMenuItem === item.id;
                   
                   return (
                     <div 
-                      key={item.id} 
-                      className="p-6 border-b border-gray-200 last:border-b-0 cursor-pointer hover:bg-gray-50"
-                      onClick={() => handleRowClick(item.id)}
+                      key={item.id}
+                      onClick={() => handleCardClick(item.id)}
+                      className={`bg-white rounded-lg border shadow-sm p-4 cursor-pointer hover:shadow-md transition-all duration-200 group ${
+                        isSelected ? 'border-blue-500 ring-2 ring-blue-200' : 'border-gray-200 hover:border-blue-200'
+                      }`}
                     >
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="flex items-center gap-3">
-                          <div className="flex items-center justify-center w-12 h-12 bg-purple-100 rounded-lg">
-                            <span className="text-purple-600 text-lg">🍽️</span>
-                          </div>
-                          <div>
-                            <h3 className="font-semibold text-gray-900">
-                              {item.name || "Unnamed item"}
-                            </h3>
-                            <div className="text-sm text-gray-500">
-                              {ingredientCount} ingredient{ingredientCount !== 1 ? 's' : ''}
-                            </div>
+                      {/* Header with icon and status */}
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <div className={`flex items-center justify-center w-8 h-8 rounded-lg transition-colors ${
+                            isSelected ? 'bg-blue-100' : 'bg-purple-100 group-hover:bg-purple-200'
+                          }`}>
+                            <IconChefHat size={16} className={isSelected ? 'text-blue-600' : 'text-purple-600'} />
                           </div>
                         </div>
-                        
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                           hasIncompleteData ? 'bg-red-100 text-red-800' : 
                           item.price && item.cost ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
                         }`}>
@@ -628,46 +595,677 @@ export default function MenuItems() {
                            item.price && item.cost ? "Complete" : "Partial"}
                         </span>
                       </div>
-                      
-                      <div className="grid grid-cols-2 gap-4 mb-4">
+
+                      {/* Menu Item Name */}
+                      <div className="mb-3">
+                        <h3 className={`font-semibold text-base mb-0.5 transition-colors ${
+                          isSelected ? 'text-blue-600' : 'text-gray-900 group-hover:text-blue-600'
+                        }`}>
+                          {item.name || "Unnamed item"}
+                        </h3>
+                        <p className="text-xs text-gray-500">
+                          {ingredientCount} ingredient{ingredientCount !== 1 ? 's' : ''}
+                        </p>
+                      </div>
+
+                      {/* Price, Cost, Margin Grid */}
+                      <div className="grid grid-cols-2 gap-3 mb-3">
                         <div>
-                          <div className="text-sm text-gray-500 mb-1">Price</div>
-                          <div className="text-sm font-medium text-gray-900">
-                            {item.price ? formatCurrency(item.price) : 'No price set'}
+                          <div className="text-xs font-medium text-gray-500 mb-0.5">PRICE</div>
+                          <div className="text-sm font-bold text-gray-900">
+                            {item.price ? formatCurrency(item.price) : <span className="text-gray-400 text-xs">Not set</span>}
                           </div>
                         </div>
                         <div>
-                          <div className="text-sm text-gray-500 mb-1">Cost</div>
-                          <div className="text-sm font-medium text-gray-900">
-                            {item.cost ? formatCurrency(item.cost) : 'No cost data'}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-sm text-gray-500 mb-1">Profit Margin</div>
-                          <div className={`text-sm ${marginColorClass}`}>
-                            {calculateMargin(item.price, item.cost)}
+                          <div className="text-xs font-medium text-gray-500 mb-0.5">COST</div>
+                          <div className="text-sm font-bold text-gray-900">
+                            {item.cost ? formatCurrency(item.cost) : <span className="text-gray-400 text-xs">No data</span>}
                           </div>
                         </div>
                       </div>
-                      
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRowClick(item.id);
-                        }}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors text-sm"
-                      >
-                        <IconEye size={16} />
-                        View Details
-                      </button>
+
+                      {/* Margin */}
+                      <div className="border-t border-gray-100 pt-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-medium text-gray-500">PROFIT MARGIN</span>
+                          <span className={`text-sm font-bold ${marginColorClass}`}>
+                            {margin}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Selection indicator */}
+                      <div className={`mt-2 transition-opacity duration-200 ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                        <div className="text-xs text-blue-600 font-medium flex items-center gap-1">
+                          {isSelected ? 'Selected' : 'Click to view details'}
+                          <IconEye size={10} />
+                        </div>
+                      </div>
                     </div>
                   );
                 })}
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
+
+        {/* Right Panel - Menu Item Details */}
+        {selectedMenuItem && (
+          <div className="w-1/2 flex flex-col">
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden flex flex-col h-[calc(100vh-140px)]">
+              {/* Detail Header */}
+              <div className="bg-gray-50 border-b border-gray-200 px-6 py-4 flex-shrink-0">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    <IconChefHat size={20} />
+                    Menu Item Details
+                  </h2>
+                  <button 
+                    onClick={handleCloseDetail}
+                    className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded-md transition-colors"
+                  >
+                    <IconX size={16} />
+                    Close
+                  </button>
+                </div>
+              </div>
+
+              {/* Detail Content */}
+              <div className="flex-1 overflow-y-auto">
+                <div className="p-6">
+                  {detailLoading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <div className="flex flex-col items-center gap-4">
+                        <div className="w-8 h-8 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin"></div>
+                        <div className="text-gray-600">Loading details...</div>
+                      </div>
+                    </div>
+                  ) : detailError ? (
+                    <div className="text-center py-12">
+                      <div className="flex items-center justify-center w-12 h-12 bg-red-100 rounded-full mx-auto mb-4">
+                        <IconAlertTriangle size={24} className="text-red-600" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">Error Loading Details</h3>
+                      <p className="text-gray-600">{detailError}</p>
+                    </div>
+                  ) : selectedMenuItemData ? (
+                    <MenuItemDetailContent 
+                      data={selectedMenuItemData}
+                      formatCurrency={formatCurrency}
+                      formatDate={(dateString) => {
+                        if (!dateString) return "N/A";
+                        try {
+                          return new Date(dateString).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric'
+                          });
+                        } catch {
+                          return "Invalid date";
+                        }
+                      }}
+                      formatDateTime={(dateString) => {
+                        if (!dateString) return "N/A";
+                        try {
+                          return new Date(dateString).toLocaleString('en-US', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          });
+                        } catch {
+                          return "Invalid date";
+                        }
+                      }}
+                      expandedComponents={expandedComponents}
+                      setExpandedComponents={setExpandedComponents}
+                    />
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </ClientLayout>
+  );
+}
+
+// Separate component for menu item details
+function MenuItemDetailContent({ 
+  data, 
+  formatCurrency, 
+  formatDate, 
+  formatDateTime, 
+  expandedComponents, 
+  setExpandedComponents 
+}) {
+  const { menuItem, ingredients, components, costHistory } = data;
+
+  function calculateIngredientCost(ingredient, quantity) {
+    const unitCost = parseFloat(ingredient?.last_price || 0);
+    const qty = parseFloat(quantity || 0);
+    return unitCost * qty;
+  }
+
+  function calculateTotalCost() {
+    if (components.length > 0) {
+      return components.reduce((total, component) => {
+        return total + component.calculatedCost;
+      }, 0);
+    } else {
+      return ingredients.reduce((total, item) => {
+        return total + calculateIngredientCost(item.ingredients, item.quantity);
+      }, 0);
+    }
+  }
+
+  function toggleComponent(componentId) {
+    setExpandedComponents(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(componentId)) {
+        newSet.delete(componentId);
+      } else {
+        newSet.add(componentId);
+      }
+      return newSet;
+    });
+  }
+
+  function expandAll() {
+    setExpandedComponents(new Set(components.map(c => c.id)));
+  }
+
+  function collapseAll() {
+    setExpandedComponents(new Set());
+  }
+
+  function calculateProfitMargin() {
+    const price = parseFloat(menuItem?.price || 0);
+    const cost = calculateTotalCost();
+    
+    if (price === 0) return null;
+    return ((price - cost) / price) * 100;
+  }
+
+  function getMarginColor(margin) {
+    if (margin === null || margin === undefined) return "text-gray-400";
+    if (margin >= 70) return "text-green-600 font-semibold";
+    if (margin >= 50) return "text-green-500 font-medium";
+    if (margin >= 30) return "text-yellow-600 font-medium";
+    return "text-red-500 font-semibold";
+  }
+
+  function getUniqueIngredientCount() {
+    if (components.length > 0) {
+      const uniqueIngredientIds = new Set();
+      components.forEach(component => {
+        component.ingredients.forEach(ingredient => {
+          if (ingredient.ingredientId) {
+            uniqueIngredientIds.add(ingredient.ingredientId);
+          }
+        });
+      });
+      
+      return uniqueIngredientIds.size;
+    } else {
+      return ingredients.length;
+    }
+  }
+
+  function getMissingPriceIngredients() {
+    let missingIngredients = [];
+    
+    if (components.length > 0) {
+      components.forEach(component => {
+        component.ingredients.forEach(ingredient => {
+          if (!ingredient.hasPrice) {
+            missingIngredients.push(ingredient);
+          }
+        });
+      });
+    } else {
+      missingIngredients = ingredients.filter(item => 
+        !item.ingredients?.last_price || parseFloat(item.ingredients.last_price) === 0
+      );
+    }
+    
+    return missingIngredients;
+  }
+
+  const totalCost = calculateTotalCost();
+  const profitMargin = calculateProfitMargin();
+  const marginColorClass = getMarginColor(profitMargin);
+  const missingPriceIngredients = getMissingPriceIngredients();
+
+  return (
+    <div className="space-y-6">
+      {/* Menu Item Header */}
+      <div>
+        <h1 className="text-xl font-bold text-gray-900 mb-2">{menuItem.name}</h1>
+        <div className="flex items-center gap-2">
+          <span className="text-lg font-semibold text-green-600">
+            {menuItem.price ? formatCurrency(menuItem.price) : "No price set"}
+          </span>
+        </div>
+      </div>
+
+      {/* Overview Cards */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center w-10 h-10 bg-green-100 rounded-lg">
+              <IconCurrencyDollar size={20} className="text-green-600" />
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Menu Price</p>
+              <p className="text-lg font-bold text-gray-900">
+                {menuItem.price ? formatCurrency(menuItem.price) : "Not set"}
+              </p>
+            </div>
+          </div>
+        </div>
+        
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center w-10 h-10 bg-blue-100 rounded-lg">
+              <IconPackage size={20} className="text-blue-600" />
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Total Cost</p>
+              <p className="text-lg font-bold text-gray-900">
+                {formatCurrency(totalCost)}
+              </p>
+            </div>
+          </div>
+        </div>
+        
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center w-10 h-10 bg-purple-100 rounded-lg">
+              <IconTrendingUp size={20} className="text-purple-600" />
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Profit Margin</p>
+              <p className={`text-lg font-bold ${marginColorClass}`}>
+                {profitMargin !== null ? `${profitMargin.toFixed(1)}%` : "N/A"}
+              </p>
+            </div>
+          </div>
+        </div>
+        
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center w-10 h-10 bg-orange-100 rounded-lg">
+              <IconChefHat size={20} className="text-orange-600" />
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Ingredients</p>
+              <p className="text-lg font-bold text-gray-900">
+                {getUniqueIngredientCount()}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Alert for missing data */}
+      {missingPriceIngredients.length > 0 && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <div className="flex items-center justify-center w-8 h-8 bg-yellow-100 rounded-lg">
+              <IconExclamationCircle size={16} className="text-yellow-600" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-yellow-800 mb-1">Missing Ingredient Pricing</h3>
+              <p className="text-xs text-yellow-700">
+                {missingPriceIngredients.length} ingredient{missingPriceIngredients.length !== 1 ? 's' : ''} 
+                {missingPriceIngredients.length === 1 ? ' is' : ' are'} missing price data.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Ingredients Breakdown */}
+      {components.length > 0 ? (
+        // Component-based breakdown
+        <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+          <div className="bg-gray-50 border-b border-gray-200 px-4 py-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                <IconChefHat size={16} />
+                Component Breakdown
+              </h3>
+              <div className="flex items-center gap-2">
+                <div className="text-xs text-gray-500">
+                  {components.length} component{components.length !== 1 ? 's' : ''}
+                </div>
+                <div className="flex gap-1">
+                  <button 
+                    onClick={expandAll}
+                    className="flex items-center gap-1 px-2 py-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded transition-colors"
+                  >
+                    <IconEye size={12} />
+                    Expand
+                  </button>
+                  <button 
+                    onClick={collapseAll}
+                    className="flex items-center gap-1 px-2 py-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded transition-colors"
+                  >
+                    <IconEyeOff size={12} />
+                    Collapse
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-4 space-y-3">
+            {components.map(component => {
+              const isExpanded = expandedComponents.has(component.id);
+              const costDiscrepancy = Math.abs(component.storedCost - component.calculatedCost);
+              const hasDiscrepancy = costDiscrepancy > 0.01;
+
+              return (
+                <div key={component.id} className="border border-gray-200 rounded-lg overflow-hidden">
+                  {/* Component Header */}
+                  <div 
+                    className="bg-gray-50 px-3 py-2 cursor-pointer hover:bg-gray-100 transition-colors"
+                    onClick={() => toggleComponent(component.id)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="text-gray-400">
+                          {isExpanded ? (
+                            <IconChevronDown size={16} />
+                          ) : (
+                            <IconChevronRight size={16} />
+                          )}
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-semibold text-gray-900">{component.name}</h4>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-xs text-gray-500">
+                              {component.ingredientCount} ingredient{component.ingredientCount !== 1 ? 's' : ''}
+                            </span>
+                            {hasDiscrepancy && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-700">
+                                <IconExclamationCircle size={8} />
+                                Mismatch
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-bold text-gray-900">
+                          ${component.calculatedCost.toFixed(2)}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {totalCost > 0 ? 
+                            ((component.calculatedCost / totalCost) * 100).toFixed(1) : 0
+                          }% of total
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Expanded Ingredients */}
+                  {isExpanded && (
+                    <div className="bg-white">
+                      <div className="px-3 py-2">
+                        {component.ingredients.map((ingredient, ingredientIndex) => {
+                          const isLast = ingredientIndex === component.ingredients.length - 1;
+                          
+                          return (
+                            <div key={ingredient.id} className="relative">
+                              {/* Tree structure lines */}
+                              <div className="absolute left-4 top-0 w-px bg-gray-300" style={{
+                                height: isLast ? '12px' : '100%'
+                              }}></div>
+                              <div className="absolute left-4 top-3 w-4 h-px bg-gray-300"></div>
+                              
+                              <div className="flex items-center justify-between py-1.5 pl-10 pr-2">
+                                <div className="flex-1">
+                                  <div className="flex items-center justify-between">
+                                    <div>
+                                      <span className="text-sm font-medium text-gray-900">{ingredient.name}</span>
+                                      <div className="text-xs text-gray-500 mt-0.5">
+                                        {ingredient.quantity} {ingredient.unit}
+                                        {ingredient.lastOrdered && (
+                                          <span className="ml-2">• Last ordered {formatDate(ingredient.lastOrdered)}</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="text-right ml-3">
+                                      <div className="text-sm font-semibold text-gray-900">
+                                        ${ingredient.totalCost.toFixed(3)}
+                                      </div>
+                                      <div className="text-xs text-gray-500">
+                                        {ingredient.hasPrice ? (
+                                          `${ingredient.unitCost.toFixed(3)}/${ingredient.standardUnit}`
+                                        ) : (
+                                          'No price'
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="ml-2">
+                                  {ingredient.hasPrice ? (
+                                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                  ) : (
+                                    <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      
+                      {/* Component Total */}
+                      <div className="bg-gray-50 px-3 py-2 border-t border-gray-200">
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs font-medium text-gray-700">Component Total</span>
+                          <span className="text-sm font-bold text-gray-900">${component.calculatedCost.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Summary Footer */}
+          <div className="bg-gray-50 border-t border-gray-200 px-4 py-3">
+            <div className="grid grid-cols-1 gap-3">
+              <div className="text-center">
+                <div className="text-xs text-gray-500 mb-1">Total Food Cost</div>
+                <div className="text-lg font-bold text-gray-900">${totalCost.toFixed(2)}</div>
+              </div>
+              {menuItem.price && (
+                <>
+                  <div className="text-center">
+                    <div className="text-xs text-gray-500 mb-1">Profit per Item</div>
+                    <div className="text-lg font-bold text-green-600">
+                      {formatCurrency(parseFloat(menuItem.price) - totalCost)}
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xs text-gray-500 mb-1">Food Cost %</div>
+                    <div className={`text-lg font-bold ${
+                      ((totalCost / parseFloat(menuItem.price)) * 100) < 25 ? 'text-green-600' :
+                      ((totalCost / parseFloat(menuItem.price)) * 100) < 35 ? 'text-yellow-600' : 'text-red-600'
+                    }`}>
+                      {((totalCost / parseFloat(menuItem.price)) * 100).toFixed(1)}%
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Pricing Recommendations */}
+          <div className="bg-white border-t border-gray-200 px-4 py-3">
+            <h4 className="text-xs font-semibold text-gray-900 mb-2 flex items-center gap-1">
+              <IconTrendingUp size={12} />
+              Pricing Recommendations
+            </h4>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="text-center p-2 bg-gray-50 rounded">
+                <div className="text-xs text-gray-500 mb-1">Break-even (30%)</div>
+                <div className="text-sm font-semibold text-gray-900">
+                  ${(totalCost / 0.30).toFixed(2)}
+                </div>
+              </div>
+              <div className="text-center p-2 bg-green-50 rounded">
+                <div className="text-xs text-gray-500 mb-1">Recommended (25%)</div>
+                <div className="text-sm font-semibold text-green-700">
+                  ${(totalCost / 0.25).toFixed(2)}
+                </div>
+              </div>
+              <div className="text-center p-2 bg-blue-50 rounded">
+                <div className="text-xs text-gray-500 mb-1">Premium (20%)</div>
+                <div className="text-sm font-semibold text-blue-700">
+                  ${(totalCost / 0.20).toFixed(2)}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : ingredients.length > 0 ? (
+        // Original ingredient-based breakdown
+        <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+          <div className="bg-gray-50 border-b border-gray-200 px-4 py-3">
+            <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+              <IconChefHat size={16} />
+              Ingredient Breakdown
+            </h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="text-left py-2 px-3 text-xs font-semibold text-gray-900">Ingredient</th>
+                  <th className="text-left py-2 px-3 text-xs font-semibold text-gray-900">Qty</th>
+                  <th className="text-left py-2 px-3 text-xs font-semibold text-gray-900">Cost</th>
+                  <th className="text-left py-2 px-3 text-xs font-semibold text-gray-900">Total</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {ingredients.map((item, index) => {
+                  const ingredient = item.ingredients;
+                  const cost = calculateIngredientCost(ingredient, item.quantity);
+                  const hasPrice = ingredient?.last_price && parseFloat(ingredient.last_price) > 0;
+                  
+                  return (
+                    <tr key={index} className="hover:bg-gray-50">
+                      <td className="py-2 px-3">
+                        <span className="text-sm font-medium text-gray-900">
+                          {ingredient?.name || "Unknown ingredient"}
+                        </span>
+                      </td>
+                      <td className="py-2 px-3 text-gray-900 text-xs">
+                        {item.quantity} {ingredient?.unit || "units"}
+                      </td>
+                      <td className="py-2 px-3">
+                        {hasPrice ? (
+                          <span className="text-xs font-medium text-green-600">
+                            {formatCurrency(ingredient.last_price)}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-red-500 italic">No price</span>
+                        )}
+                      </td>
+                      <td className="py-2 px-3">
+                        <span className="text-xs font-medium text-gray-900">
+                          {formatCurrency(cost)}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot className="bg-gray-50">
+                <tr>
+                  <td colSpan="3" className="py-2 px-3 text-xs font-semibold text-gray-900">Total:</td>
+                  <td className="py-2 px-3 text-xs font-bold text-gray-900">
+                    {formatCurrency(totalCost)}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-white border border-gray-200 rounded-lg p-8 text-center">
+          <div className="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full mx-auto mb-4">
+            <IconChefHat size={24} className="text-gray-400" />
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">No Ingredients Found</h3>
+          <p className="text-sm text-gray-600">This menu item doesn't have any ingredients or components configured yet.</p>
+        </div>
+      )}
+
+      {/* Cost History */}
+      {costHistory.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+          <div className="bg-gray-50 border-b border-gray-200 px-4 py-3">
+            <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+              <IconChartLine size={16} />
+              Cost Change History
+            </h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="text-left py-2 px-3 text-xs font-semibold text-gray-900">Date</th>
+                  <th className="text-left py-2 px-3 text-xs font-semibold text-gray-900">Previous</th>
+                  <th className="text-left py-2 px-3 text-xs font-semibold text-gray-900">New</th>
+                  <th className="text-left py-2 px-3 text-xs font-semibold text-gray-900">Change</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {costHistory.map((record) => {
+                  const change = parseFloat(record.new_cost || 0) - parseFloat(record.old_cost || 0);
+                  const isIncrease = change > 0;
+                  
+                  return (
+                    <tr key={record.id} className="hover:bg-gray-50">
+                      <td className="py-2 px-3 text-xs text-gray-900">
+                        {formatDateTime(record.created_at)}
+                      </td>
+                      <td className="py-2 px-3 text-xs text-gray-900">
+                        {formatCurrency(record.old_cost)}
+                      </td>
+                      <td className="py-2 px-3 text-xs text-gray-900">
+                        {formatCurrency(record.new_cost)}
+                      </td>
+                      <td className="py-2 px-3">
+                        <div className="flex items-center gap-1">
+                          {isIncrease ? (
+                            <IconTrendingUp size={12} className="text-red-500" />
+                          ) : (
+                            <IconTrendingDown size={12} className="text-green-500" />
+                          )}
+                          <span className={`text-xs font-medium ${isIncrease ? 'text-red-500' : 'text-green-500'}`}>
+                            {isIncrease ? '+' : ''}{formatCurrency(change)}
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
