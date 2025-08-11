@@ -53,6 +53,7 @@ export default function ClientDashboard() {
     processingStats: { processed: 0, pending: 0 }
   });
   const router = useRouter();
+  const [userName, setUserName] = useState("");
 
   // Alert thresholds
   const LOW_MARGIN_THRESHOLD = 40;
@@ -80,7 +81,7 @@ export default function ClientDashboard() {
 
       const { data, error } = await supabase
         .from("profiles")
-        .select("restaurant_id")
+        .select("restaurant_id, full_name")
         .eq("id", user.id)
         .single();
 
@@ -91,6 +92,7 @@ export default function ClientDashboard() {
       }
 
       setRestaurantId(data.restaurant_id);
+      setUserName(data.full_name || "User");
     } catch (err) {
       setError("An unexpected error occurred");
       setLoading(false);
@@ -211,32 +213,32 @@ export default function ClientDashboard() {
   }
 
   function calculateMonthlySpending(invoices) {
-    const currentYear = new Date().getFullYear();
-    const monthlyTotals = {};
-    
-    // Initialize all months of current year with zero
-    for (let month = 1; month <= 12; month++) {
-      const monthKey = `${currentYear}-${String(month).padStart(2, '0')}`;
-      const monthName = new Date(currentYear, month - 1).toLocaleDateString('en-US', { month: 'short' });
-      monthlyTotals[monthKey] = { month: monthName, total: 0, invoiceCount: 0 };
-    }
-    
-    // Add actual invoice data
-    invoices.forEach(invoice => {
-      if (invoice.date && invoice.amount) {
-        const date = new Date(invoice.date);
-        if (date.getFullYear() === currentYear) {
-          const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-          if (monthlyTotals[monthKey]) {
-            monthlyTotals[monthKey].total += parseFloat(invoice.amount);
-            monthlyTotals[monthKey].invoiceCount += 1;
-          }
+  const currentYear = new Date().getFullYear();
+  const monthlyTotals = {};
+  
+  // Initialize all months of current year with zero
+  for (let month = 1; month <= 12; month++) {
+    const monthKey = `${currentYear}-${String(month).padStart(2, '0')}`;
+    const monthName = new Date(currentYear, month - 1).toLocaleDateString('en-US', { month: 'short' });
+    monthlyTotals[monthKey] = { month: monthName, total: 0, invoiceCount: 0, monthNumber: month };
+  }
+  
+  // Add actual invoice data
+  invoices.forEach(invoice => {
+    if (invoice.date && invoice.amount) {
+      const date = new Date(invoice.date);
+      if (date.getFullYear() === currentYear) {
+        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        if (monthlyTotals[monthKey]) {
+          monthlyTotals[monthKey].total += parseFloat(invoice.amount);
+          monthlyTotals[monthKey].invoiceCount += 1;
         }
       }
-    });
+    }
+  });
 
-    return Object.values(monthlyTotals).sort((a, b) => a.month.localeCompare(b.month));
-  }
+  return Object.values(monthlyTotals).sort((a, b) => a.monthNumber - b.monthNumber);
+}
 
   function formatCurrency(amount) {
     if (!amount) return "$0";
@@ -330,7 +332,7 @@ export default function ClientDashboard() {
 
       {/* Welcome Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Welcome Back, User!</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Welcome Back, {userName}!</h1>
       </div>
 
       {/* Dashboard Grid Layout */}
@@ -398,36 +400,36 @@ export default function ClientDashboard() {
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 flex-1 min-h-0">
-            <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-3 border border-green-100 flex flex-col justify-between overflow-hidden">
+            <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-2 border border-green-100 flex flex-col justify-between overflow-hidden">
               <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center text-white text-xs font-bold">1</div>
+                <div className="flex items-center gap-1 mb-1">
+                  <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center text-white text-xs font-bold">1</div>
                   <span className="text-xs font-medium text-green-800">Top Pick</span>
                 </div>
                 <h4 className="font-semibold text-gray-900 mb-1 text-sm truncate">Caesar Salad</h4>
-                <p className="text-xs text-gray-600 mb-2">Fresh ingredients, 68% margin</p>
+                <p className="text-xs text-gray-600 mb-1">Fresh ingredients, 68% margin</p>
               </div>
               <div className="text-xs font-medium text-green-700">Push today</div>
             </div>
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-3 border border-blue-100 flex flex-col justify-between overflow-hidden">
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-2 border border-blue-100 flex flex-col justify-between overflow-hidden">
               <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-bold">2</div>
+                <div className="flex items-center gap-1 mb-1">
+                  <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-bold">2</div>
                   <span className="text-xs font-medium text-blue-800">High Profit</span>
                 </div>
                 <h4 className="font-semibold text-gray-900 mb-1 text-sm truncate">Grilled Salmon</h4>
-                <p className="text-xs text-gray-600 mb-2">Premium pricing, fast turnover</p>
+                <p className="text-xs text-gray-600 mb-1">Premium pricing, fast turnover</p>
               </div>
               <div className="text-xs font-medium text-blue-700">Recommend</div>
             </div>
-            <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-lg p-3 border border-orange-100 flex flex-col justify-between overflow-hidden">
+            <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-lg p-2 border border-orange-100 flex flex-col justify-between overflow-hidden">
               <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-5 h-5 bg-orange-500 rounded-full flex items-center justify-center text-white text-xs font-bold">3</div>
+                <div className="flex items-center gap-1 mb-1">
+                  <div className="w-4 h-4 bg-orange-500 rounded-full flex items-center justify-center text-white text-xs font-bold">3</div>
                   <span className="text-xs font-medium text-orange-800">Clear Stock</span>
                 </div>
                 <h4 className="font-semibold text-gray-900 mb-1 text-sm truncate">Pasta Carbonara</h4>
-                <p className="text-xs text-gray-600 mb-2">Ingredients aging, good margin</p>
+                <p className="text-xs text-gray-600 mb-1">Ingredients aging, good margin</p>
               </div>
               <div className="text-xs font-medium text-orange-700">Move today</div>
             </div>

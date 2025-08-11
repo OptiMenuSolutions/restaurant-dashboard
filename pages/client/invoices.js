@@ -16,6 +16,8 @@ import {
   IconSortAscending,
   IconSortDescending,
   IconSearch,
+  IconExternalLink,
+  IconClipboardList,
 } from '@tabler/icons-react';
 
 export default function ClientInvoices() {
@@ -32,6 +34,9 @@ export default function ClientInvoices() {
   const [uploadProgress, setUploadProgress] = useState([]);
   const [confirmationMessage, setConfirmationMessage] = useState('');
   const [dragActive, setDragActive] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [invoiceItems, setInvoiceItems] = useState([]);
+  const [loadingDetail, setLoadingDetail] = useState(false);
 
   useEffect(() => {
     const checkUser = async () => {
@@ -95,6 +100,39 @@ export default function ClientInvoices() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function fetchInvoiceDetail(invoiceId) {
+    try {
+      setLoadingDetail(true);
+      
+      // Fetch invoice items
+      const { data: itemsData, error: itemsError } = await supabase
+        .from("invoice_items")
+        .select(`
+          *,
+          ingredients (
+            name,
+            unit
+          )
+        `)
+        .eq("invoice_id", invoiceId)
+        .order("item_name");
+
+      if (!itemsError) {
+        setInvoiceItems(itemsData || []);
+      }
+    } catch (error) {
+      console.error('Error fetching invoice detail:', error);
+      setInvoiceItems([]);
+    } finally {
+      setLoadingDetail(false);
+    }
+  }
+
+  function handleInvoiceSelect(invoice) {
+    setSelectedInvoice(invoice);
+    fetchInvoiceDetail(invoice.id);
   }
 
   function handleDrag(e) {
@@ -226,19 +264,47 @@ export default function ClientInvoices() {
     }
   }
 
-  function handleSort(field) {
-    if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDirection('asc');
-    }
-  }
-
   function getInvoiceStatus(invoice) {
     const hasAllFields = invoice.number && invoice.date && invoice.supplier && invoice.amount;
     if (!hasAllFields) return { status: 'pending', label: 'Pending Review', color: 'bg-yellow-100 text-yellow-800' };
     return { status: 'processed', label: 'Processed', color: 'bg-green-100 text-green-800' };
+  }
+
+  function formatDate(dateString) {
+    if (!dateString) return "Not provided";
+    try {
+      return new Date(dateString).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    } catch {
+      return "Invalid date";
+    }
+  }
+
+  function formatCurrency(amount) {
+    if (!amount || amount === null || amount === undefined) {
+      return "--";
+    }
+    
+    const numAmount = parseFloat(amount);
+    if (isNaN(numAmount)) {
+      return "--";
+    }
+    
+    return numAmount.toLocaleString('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+  }
+
+  function calculateItemTotal(item) {
+    const quantity = parseFloat(item.quantity) || 0;
+    const unitCost = parseFloat(item.unit_cost) || 0;
+    return quantity * unitCost;
   }
 
   const filteredAndSortedInvoices = invoices
@@ -271,480 +337,391 @@ export default function ClientInvoices() {
       }
     });
 
-  const allInvoicesCount = invoices.length;
-  const processedInvoicesCount = invoices.filter(inv => getInvoiceStatus(inv).status === 'processed').length;
-  const totalValue = invoices.reduce((sum, inv) => sum + (inv.amount || 0), 0);
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">Loading Invoices</h3>
+          <p className="text-gray-600">Fetching your invoice data...</p>
+        </div>
+      </div>
+    );
+  }
 
-  return React.createElement(
-    ClientLayout,
-    {
-      pageTitle: "Invoices",
-      pageDescription: "Upload and manage your restaurant invoices",
-      pageIcon: IconFileText
-    },
-    React.createElement(
-      React.Fragment,
-      null,
-      // Controls
-      React.createElement(
-        'div',
-        { className: "bg-white border-b border-gray-200 px-6 py-4" },
-        React.createElement(
-          'div',
-          { className: "flex flex-col md:flex-row gap-4 items-center justify-between" },
-          React.createElement(
-            'div',
-            { className: "flex-1 relative" },
-            React.createElement(IconSearch, { 
-              size: 20, 
-              className: "absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" 
-            }),
-            React.createElement('input', {
-              type: "text",
-              placeholder: "Search by invoice number or supplier...",
-              value: searchTerm,
-              onChange: (e) => setSearchTerm(e.target.value),
-              className: "w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            })
-          ),
-          React.createElement(
-            'button',
-            {
-              onClick: () => setShowUploadModal(true),
-              className: "flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-            },
-            React.createElement(IconUpload, { size: 20 }),
-            "Upload Invoices"
-          )
-        )
-      ),
+  const totalCalculated = invoiceItems.reduce((sum, item) => sum + calculateItemTotal(item), 0);
 
-      // Upload Modal
-      showUploadModal && React.createElement(
-        'div',
-        {
-          className: "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50",
-          onClick: closeModal
-        },
-        React.createElement(
-          'div',
-          {
-            className: "bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden",
-            onClick: (e) => e.stopPropagation()
-          },
-          React.createElement(
-            'div',
-            { className: "flex items-center justify-between p-6 border-b border-gray-200" },
-            React.createElement('h2', { className: "text-xl font-semibold text-gray-900" }, "Upload Invoices"),
-            React.createElement(
-              'button',
-              {
-                className: "text-gray-400 hover:text-gray-600",
-                onClick: closeModal,
-                disabled: uploading
-              },
-              React.createElement(IconX, { size: 24 })
-            )
-          ),
-          React.createElement(
-            'div',
-            { className: "p-6" },
-            // Drag & Drop Zone
-            React.createElement(
-              'div',
-              {
-                className: `border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                  dragActive 
-                    ? 'border-blue-500 bg-blue-50' 
-                    : 'border-gray-300 hover:border-gray-400'
-                }`,
-                onDragEnter: handleDrag,
-                onDragLeave: handleDrag,
-                onDragOver: handleDrag,
-                onDrop: handleDrop
-              },
-              React.createElement(
-                'div',
-                { className: "space-y-4" },
-                React.createElement('div', { className: "text-4xl" }, "📁"),
-                React.createElement(
-                  'div',
-                  null,
-                  React.createElement('p', { className: "text-lg font-medium text-gray-900" }, "Drag & drop your invoice files here"),
-                  React.createElement(
-                    'p',
-                    { className: "text-gray-600 mt-1" },
-                    "or ",
-                    React.createElement(
-                      'span',
-                      {
-                        className: "text-blue-600 hover:text-blue-700 cursor-pointer font-medium",
-                        onClick: () => document.getElementById('fileInput').click()
-                      },
-                      "click to browse"
-                    )
-                  ),
-                  React.createElement('p', { className: "text-sm text-gray-500 mt-2" }, "Supports PDF and image files")
-                )
-              ),
-              React.createElement('input', {
-                type: "file",
-                multiple: true,
-                accept: "application/pdf,image/*",
-                onChange: handleFileSelect,
-                className: "hidden",
-                id: "fileInput",
-                disabled: uploading
-              })
-            ),
+  return (
+    <ClientLayout
+      pageTitle="Invoices"
+      pageDescription="Upload and manage your restaurant invoices"
+      pageIcon={IconFileText}
+    >
+      {/* Centered Search Bar and Upload Button */}
+      <div className="flex justify-center items-center gap-4 mb-6">
+        <div className="relative w-96">
+          <input
+            type="text"
+            placeholder="Search invoices by number or supplier..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-sm"
+          />
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <IconSearch size={16} className="text-gray-400" />
+          </div>
+        </div>
+        <button
+          onClick={() => setShowUploadModal(true)}
+          className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+        >
+          <IconUpload size={20} />
+          Upload
+        </button>
+      </div>
 
-            // Selected Files
-            selectedFiles.length > 0 && React.createElement(
-              'div',
-              { className: "mt-6" },
-              React.createElement(
-                'h3',
-                { className: "text-lg font-medium text-gray-900 mb-4" },
-                `Selected Files (${selectedFiles.length})`
-              ),
-              React.createElement(
-                'div',
-                { className: "space-y-3 max-h-40 overflow-y-auto" },
-                selectedFiles.map((file, index) => 
-                  React.createElement(
-                    'div',
-                    { key: index, className: "flex items-center justify-between p-3 bg-gray-50 rounded-lg" },
-                    React.createElement(
-                      'div',
-                      { className: "flex-1 min-w-0" },
-                      React.createElement('p', { className: "text-sm font-medium text-gray-900 truncate" }, file.name),
-                      React.createElement('p', { className: "text-xs text-gray-500" }, `${(file.size / 1024 / 1024).toFixed(2)} MB`)
-                    ),
-                    uploading && React.createElement(
-                      'div',
-                      { className: "w-24 bg-gray-200 rounded-full h-2 ml-4" },
-                      React.createElement('div', {
-                        className: "bg-blue-600 h-2 rounded-full transition-all duration-300",
-                        style: { width: `${uploadProgress[index] || 0}%` }
-                      })
-                    ),
-                    !uploading && React.createElement(
-                      'button',
-                      {
-                        className: "ml-4 text-red-600 hover:text-red-700 text-sm font-medium",
-                        onClick: () => removeFile(index)
-                      },
-                      "Remove"
-                    )
-                  )
-                )
-              )
-            ),
+      {/* Confirmation Message */}
+      {confirmationMessage && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+          <p className="text-green-800 font-medium">{confirmationMessage}</p>
+        </div>
+      )}
 
-            // Actions
-            React.createElement(
-              'div',
-              { className: "flex justify-end gap-3 mt-6 pt-6 border-t border-gray-200" },
-              React.createElement(
-                'button',
-                {
-                  className: "px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors",
-                  onClick: closeModal,
-                  disabled: uploading
-                },
-                "Cancel"
-              ),
-              React.createElement(
-                'button',
-                {
-                  className: "px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
-                  onClick: handleUpload,
-                  disabled: selectedFiles.length === 0 || uploading
-                },
-                uploading ? 'Uploading...' : `Upload ${selectedFiles.length} File(s)`
-              )
-            )
-          )
-        )
-      ),
+      {/* Main Layout - Split View */}
+      <div className="flex gap-4 h-[calc(100vh-200px)]">
+        
+        {/* Invoice List - Left Side (55% width) */}
+        <div className="w-[55%] bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col overflow-hidden">
+          {/* Header */}
+          <div className="p-4 border-b border-gray-200 flex-shrink-0 bg-gradient-to-r from-blue-50 to-indigo-50">
+            <h3 className="text-lg font-semibold text-gray-900">Invoice List</h3>
+          </div>
 
-      React.createElement(
-        'div',
-        { className: "p-6" },
-        loading ? React.createElement(
-          'div',
-          { className: "flex items-center justify-center py-12" },
-          React.createElement('div', { className: "w-10 h-10 border-4 border-gray-300 border-t-blue-600 rounded-full animate-spin" }),
-          React.createElement('span', { className: "ml-3 text-gray-600" }, "Loading invoices...")
-        ) : React.createElement(
-          'div',
-          { className: "space-y-6" },
-          // Confirmation Message
-          confirmationMessage && React.createElement(
-            'div',
-            { className: "bg-green-50 border border-green-200 rounded-lg p-4" },
-            React.createElement('p', { className: "text-green-800 font-medium" }, confirmationMessage)
-          ),
+          {/* Table Header */}
+          <div className="grid grid-cols-4 gap-4 p-4 bg-gray-50 border-b border-gray-200 text-sm font-medium text-gray-900 flex-shrink-0">
+            <div>Supplier</div>
+            <div>Invoice No.</div>
+            <div>Invoice Date</div>
+            <div>Amount</div>
+          </div>
 
-          // Summary Stats
-          React.createElement(
-            'div',
-            { className: "grid grid-cols-1 md:grid-cols-3 gap-6" },
-            React.createElement(
-              'div',
-              { className: "bg-white border border-gray-200 rounded-xl p-6 shadow-sm" },
-              React.createElement(
-                'div',
-                { className: "flex items-center gap-4" },
-                React.createElement(
-                  'div',
-                  { className: "flex items-center justify-center w-12 h-12 bg-blue-100 rounded-lg" },
-                  React.createElement(IconFileText, { size: 24, className: "text-blue-600" })
-                ),
-                React.createElement(
-                  'div',
-                  null,
-                  React.createElement('p', { className: "text-2xl font-bold text-gray-900" }, allInvoicesCount),
-                  React.createElement('p', { className: "text-gray-600" }, "Total Invoices"),
-                  React.createElement('p', { className: "text-sm text-gray-500" }, "All uploaded invoices")
-                )
-              )
-            ),
-            React.createElement(
-              'div',
-              { className: "bg-white border border-gray-200 rounded-xl p-6 shadow-sm" },
-              React.createElement(
-                'div',
-                { className: "flex items-center gap-4" },
-                React.createElement(
-                  'div',
-                  { className: "flex items-center justify-center w-12 h-12 bg-green-100 rounded-lg" },
-                  React.createElement(IconCheck, { size: 24, className: "text-green-600" })
-                ),
-                React.createElement(
-                  'div',
-                  null,
-                  React.createElement('p', { className: "text-2xl font-bold text-gray-900" }, processedInvoicesCount),
-                  React.createElement('p', { className: "text-gray-600" }, "Processed"),
-                  React.createElement('p', { className: "text-sm text-gray-500" }, 
-                    `${allInvoicesCount > 0 ? Math.round((processedInvoicesCount / allInvoicesCount) * 100) : 0}% complete`
-                  )
-                )
-              )
-            ),
-            React.createElement(
-              'div',
-              { className: "bg-white border border-gray-200 rounded-xl p-6 shadow-sm" },
-              React.createElement(
-                'div',
-                { className: "flex items-center gap-4" },
-                React.createElement(
-                  'div',
-                  { className: "flex items-center justify-center w-12 h-12 bg-emerald-100 rounded-lg" },
-                  React.createElement(IconCurrencyDollar, { size: 24, className: "text-emerald-600" })
-                ),
-                React.createElement(
-                  'div',
-                  null,
-                  React.createElement('p', { className: "text-2xl font-bold text-gray-900" }, `$${totalValue.toFixed(2)}`),
-                  React.createElement('p', { className: "text-gray-600" }, "Total Value"),
-                  React.createElement('p', { className: "text-sm text-gray-500" }, "Combined invoice amount")
-                )
-              )
-            )
-          ),
+          {/* Invoice List Content */}
+          <div className="flex-1 overflow-y-auto">
+            {filteredAndSortedInvoices.length === 0 ? (
+              <div className="text-center py-12">
+                <IconFileText size={48} className="mx-auto mb-4 text-gray-300" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No Invoices Found</h3>
+                <p className="text-gray-600 mb-6">
+                  {searchTerm 
+                    ? `No invoices match "${searchTerm}"`
+                    : 'Upload your first invoice to get started!'
+                  }
+                </p>
+                {!searchTerm && (
+                  <button
+                    onClick={() => setShowUploadModal(true)}
+                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Upload First Invoice
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-1 p-2">
+                {filteredAndSortedInvoices.map(invoice => (
+                  <div 
+                    key={invoice.id} 
+                    className={`grid grid-cols-4 gap-4 p-3 rounded-lg cursor-pointer transition-all duration-200 ${
+                      selectedInvoice?.id === invoice.id 
+                        ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-300 shadow-sm' 
+                        : 'hover:bg-gradient-to-r hover:from-gray-50 hover:to-blue-25 hover:shadow-sm'
+                    }`}
+                    onClick={() => handleInvoiceSelect(invoice)}
+                  >
+                    <div className="truncate">
+                      <span className="text-sm text-gray-900">
+                        {invoice.supplier || <span className="text-gray-400 italic">Pending</span>}
+                      </span>
+                    </div>
+                    <div className="truncate">
+                      <span className="text-sm text-gray-900">
+                        {invoice.number || <span className="text-gray-400 italic">Pending</span>}
+                      </span>
+                    </div>
+                    <div className="truncate">
+                      <span className="text-sm text-gray-900">
+                        {invoice.date ? new Date(invoice.date).toLocaleDateString() : <span className="text-gray-400 italic">Pending</span>}
+                      </span>
+                    </div>
+                    <div className="truncate">
+                      <span className="text-sm font-medium text-gray-900">
+                        {invoice.amount ? formatCurrency(invoice.amount) : <span className="text-gray-400 italic">Pending</span>}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
 
-          // Invoices Table
-          React.createElement(
-            'div',
-            { className: "bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden" },
-            filteredAndSortedInvoices.length === 0 ? React.createElement(
-              'div',
-              { className: "text-center py-12" },
-              React.createElement(IconFileText, { size: 48, className: "mx-auto mb-4 text-gray-300" }),
-              React.createElement('h3', { className: "text-lg font-medium text-gray-900 mb-2" }, "No Invoices Found"),
-              React.createElement('p', { className: "text-gray-600 mb-6" },
-                searchTerm 
-                  ? `No invoices match "${searchTerm}"`
-                  : 'Upload your first invoice to get started with cost tracking!'
-              ),
-              !searchTerm && React.createElement(
-                'button',
-                {
-                  onClick: () => setShowUploadModal(true),
-                  className: "px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                },
-                "Upload First Invoice"
-              )
-            ) : React.createElement(
-              'div',
-              { className: "overflow-x-auto" },
-              React.createElement(
-                'table',
-                { className: "w-full" },
-                React.createElement(
-                  'thead',
-                  { className: "bg-gray-50 border-b border-gray-200" },
-                  React.createElement(
-                    'tr',
-                    null,
-                    React.createElement(
-                      'th',
-                      {
-                        className: "text-left py-4 px-6 text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-100",
-                        onClick: () => handleSort('number')
-                      },
-                      React.createElement(
-                        'div',
-                        { className: "flex items-center gap-2" },
-                        "Invoice #",
-                        sortField === 'number' && (
-                          sortDirection === 'asc' ? React.createElement(IconSortAscending, { size: 16 }) : React.createElement(IconSortDescending, { size: 16 })
-                        )
-                      )
-                    ),
-                    React.createElement(
-                      'th',
-                      {
-                        className: "text-left py-4 px-6 text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-100",
-                        onClick: () => handleSort('date')
-                      },
-                      React.createElement(
-                        'div',
-                        { className: "flex items-center gap-2" },
-                        "Date",
-                        sortField === 'date' && (
-                          sortDirection === 'asc' ? React.createElement(IconSortAscending, { size: 16 }) : React.createElement(IconSortDescending, { size: 16 })
-                        )
-                      )
-                    ),
-                    React.createElement(
-                      'th',
-                      {
-                        className: "text-left py-4 px-6 text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-100",
-                        onClick: () => handleSort('supplier')
-                      },
-                      React.createElement(
-                        'div',
-                        { className: "flex items-center gap-2" },
-                        "Supplier",
-                        sortField === 'supplier' && (
-                          sortDirection === 'asc' ? React.createElement(IconSortAscending, { size: 16 }) : React.createElement(IconSortDescending, { size: 16 })
-                        )
-                      )
-                    ),
-                    React.createElement(
-                      'th',
-                      {
-                        className: "text-left py-4 px-6 text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-100",
-                        onClick: () => handleSort('amount')
-                      },
-                      React.createElement(
-                        'div',
-                        { className: "flex items-center gap-2" },
-                        "Amount",
-                        sortField === 'amount' && (
-                          sortDirection === 'asc' ? React.createElement(IconSortAscending, { size: 16 }) : React.createElement(IconSortDescending, { size: 16 })
-                        )
-                      )
-                    ),
-                    React.createElement('th', { className: "text-left py-4 px-6 text-sm font-semibold text-gray-900" }, "Status"),
-                    React.createElement(
-                      'th',
-                      {
-                        className: "text-left py-4 px-6 text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-100",
-                        onClick: () => handleSort('created_at')
-                      },
-                      React.createElement(
-                        'div',
-                        { className: "flex items-center gap-2" },
-                        "Uploaded",
-                        sortField === 'created_at' && (
-                          sortDirection === 'asc' ? React.createElement(IconSortAscending, { size: 16 }) : React.createElement(IconSortDescending, { size: 16 })
-                        )
-                      )
-                    ),
-                    React.createElement('th', { className: "text-left py-4 px-6 text-sm font-semibold text-gray-900" }, "Actions")
-                  )
-                ),
-                React.createElement(
-                  'tbody',
-                  { className: "divide-y divide-gray-100" },
-                  filteredAndSortedInvoices.map(invoice => {
-                    const status = getInvoiceStatus(invoice);
+        {/* Invoice Detail - Right Side (45% width) */}
+        <div className="w-[45%] bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col overflow-hidden">
+          {selectedInvoice ? (
+            <>
+              {/* Header */}
+              <div className="p-4 border-b border-gray-200 flex-shrink-0 bg-gradient-to-r from-emerald-50 to-teal-50">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-gray-900">Invoice Detail</h3>
+                  <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getInvoiceStatus(selectedInvoice).color}`}>
+                    {getInvoiceStatus(selectedInvoice).label}
+                  </span>
+                </div>
+              </div>
+
+              {/* Detail Content */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                {/* Invoice Information */}
+                <div className="space-y-4">
+                  <h4 className="text-lg font-semibold text-gray-900 border-b-2 border-blue-200 pb-2">Invoice Information</h4>
+                  <div className="grid grid-cols-3 gap-6 bg-gradient-to-br from-gray-50 to-blue-50 p-4 rounded-lg">
+                    {/* Row 1 */}
+                    <div className="text-center">
+                      <div className="text-sm font-bold text-blue-700 mb-2">Invoice No.</div>
+                      <div className="text-sm text-gray-700">
+                        {selectedInvoice.number || <span className="text-gray-400 italic">Pending Review</span>}
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-sm font-bold text-blue-700 mb-2">Invoice Date</div>
+                      <div className="text-sm text-gray-700">
+                        {selectedInvoice.date ? formatDate(selectedInvoice.date) : <span className="text-gray-400 italic">Pending Review</span>}
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-sm font-bold text-blue-700 mb-2">Supplier</div>
+                      <div className="text-sm text-gray-700">
+                        {selectedInvoice.supplier || <span className="text-gray-400 italic">Pending Review</span>}
+                      </div>
+                    </div>
                     
-                    return React.createElement(
-                      'tr',
-                      { key: invoice.id, className: "hover:bg-gray-50" },
-                      React.createElement(
-                        'td',
-                        { className: "py-4 px-6" },
-                        React.createElement(
-                          'div',
-                          { className: "font-medium text-gray-900" },
-                          invoice.number || React.createElement('span', { className: "text-gray-400 italic" }, "Pending Review")
-                        )
-                      ),
-                      React.createElement(
-                        'td',
-                        { className: "py-4 px-6 text-gray-900" },
-                        invoice.date 
-                          ? new Date(invoice.date).toLocaleDateString()
-                          : React.createElement('span', { className: "text-gray-400 italic" }, "Pending Review")
-                      ),
-                      React.createElement(
-                        'td',
-                        { className: "py-4 px-6 text-gray-900" },
-                        invoice.supplier || React.createElement('span', { className: "text-gray-400 italic" }, "Pending Review")
-                      ),
-                      React.createElement(
-                        'td',
-                        { className: "py-4 px-6" },
-                        React.createElement(
-                          'div',
-                          { className: "font-medium text-gray-900" },
-                          invoice.amount 
-                            ? `$${invoice.amount.toFixed(2)}`
-                            : React.createElement('span', { className: "text-gray-400 italic" }, "Pending Review")
-                        )
-                      ),
-                      React.createElement(
-                        'td',
-                        { className: "py-4 px-6" },
-                        React.createElement('span', { className: `inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${status.color}` }, status.label)
-                      ),
-                      React.createElement(
-                        'td',
-                        { className: "py-4 px-6 text-gray-900" },
-                        React.createElement(
-                          'div',
-                          { className: "flex items-center gap-2" },
-                          React.createElement(IconCalendar, { size: 16, className: "text-gray-400" }),
-                          new Date(invoice.created_at).toLocaleDateString()
-                        )
-                      ),
-                      React.createElement(
-                        'td',
-                        { className: "py-4 px-6" },
-                        React.createElement(
-                          'button',
-                          {
-                            onClick: () => router.push(`/client/invoices/${invoice.id}`),
-                            className: "flex items-center gap-1 px-3 py-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md transition-colors text-sm",
-                            title: "View Details"
-                          },
-                          React.createElement(IconEye, { size: 16 }),
-                          "View"
-                        )
-                      )
-                    );
-                  })
-                )
-              )
-            )
-          )
-        )
-      )
-    )
+                    {/* Row 2 */}
+                    <div className="text-center">
+                      <div className="text-sm font-bold text-blue-700 mb-2">Upload Date</div>
+                      <div className="text-sm text-gray-700">{formatDate(selectedInvoice.created_at)}</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-sm font-bold text-blue-700 mb-2">File</div>
+                      <div className="text-sm text-gray-700">
+                        {selectedInvoice.file_url ? (
+                          <a
+                            href={selectedInvoice.file_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-2 py-1 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded text-xs hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-sm"
+                          >
+                            View File
+                            <IconExternalLink size={10} />
+                          </a>
+                        ) : (
+                          <span className="text-gray-400 italic">No file</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-sm font-bold text-blue-700 mb-2">Total Amount</div>
+                      <div className="text-lg font-bold text-emerald-600">
+                        {selectedInvoice.amount ? formatCurrency(selectedInvoice.amount) : <span className="text-gray-400 italic">Pending Review</span>}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Invoice Items */}
+                {loadingDetail ? (
+                  <div className="text-center py-8">
+                    <div className="w-8 h-8 border-4 border-gray-300 border-t-blue-600 rounded-full animate-spin mx-auto mb-2"></div>
+                    <span className="text-gray-600">Loading items...</span>
+                  </div>
+                ) : invoiceItems.length > 0 ? (
+                  <div className="space-y-4">
+                    <h4 className="text-lg font-semibold text-gray-900 border-b-2 border-emerald-200 pb-2">Invoice Items ({invoiceItems.length})</h4>
+                    <div className="space-y-3">
+                      {invoiceItems.map((item) => (
+                        <div key={item.id} className="border border-gray-200 rounded-lg p-3 bg-gradient-to-r from-gray-50 to-emerald-50 hover:from-gray-100 hover:to-emerald-100 transition-all duration-200">
+                          <div className="flex justify-between items-center mb-2">
+                            <h5 className="font-medium text-sm text-gray-900">{item.item_name || "--"}</h5>
+                            <span className="font-bold text-sm text-emerald-600">{formatCurrency(calculateItemTotal(item))}</span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Quantity:</span>
+                              <span className="text-gray-900">{item.quantity || "--"}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Unit:</span>
+                              <span className="text-gray-900">{item.unit || "--"}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Unit Cost:</span>
+                              <span className="text-gray-900">{formatCurrency(item.unit_cost)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Status:</span>
+                              {item.ingredients ? (
+                                <span className="text-emerald-700 bg-emerald-100 px-1 py-0.5 rounded text-xs font-medium">
+                                  Linked
+                                </span>
+                              ) : (
+                                <span className="text-orange-600 bg-orange-100 px-1 py-0.5 rounded text-xs">Not linked</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="border-t border-gray-200 pt-3 bg-gradient-to-r from-emerald-50 to-blue-50 rounded-lg p-3">
+                      <div className="flex justify-between text-sm font-bold text-gray-900">
+                        <span>Calculated Total:</span>
+                        <span className="text-emerald-600">{formatCurrency(totalCalculated)}</span>
+                      </div>
+                      {selectedInvoice.amount && Math.abs(totalCalculated - parseFloat(selectedInvoice.amount)) > 0.01 && (
+                        <div className="flex justify-between text-red-600 text-xs mt-1 font-medium">
+                          <span>Difference:</span>
+                          <span>{formatCurrency(Math.abs(totalCalculated - parseFloat(selectedInvoice.amount)))}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : getInvoiceStatus(selectedInvoice).status === 'processed' ? (
+                  <div className="text-center py-12">
+                    <IconClipboardList size={48} className="mx-auto mb-4 text-gray-300" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No Items Found</h3>
+                    <p className="text-gray-600">This invoice has been processed but no line items were recorded.</p>
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <IconClock size={48} className="mx-auto mb-4 text-yellow-500" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">Pending Review</h3>
+                    <p className="text-gray-600">This invoice is waiting to be processed. Items will be available once processing is complete.</p>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center">
+                <IconFileText size={64} className="mx-auto mb-4 text-gray-300" />
+                <h3 className="text-xl font-medium text-gray-900 mb-2">Select an Invoice</h3>
+                <p className="text-gray-600">Choose an invoice from the list to view its details</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Upload Modal */}
+      {showUploadModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={closeModal}>
+          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <h2 className="text-xl font-semibold text-gray-900">Upload Invoices</h2>
+              <button className="text-gray-400 hover:text-gray-600" onClick={closeModal} disabled={uploading}>
+                <IconX size={24} />
+              </button>
+            </div>
+            <div className="p-6">
+              {/* Drag & Drop Zone */}
+              <div
+                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                  dragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'
+                }`}
+                onDragEnter={handleDrag}
+                onDragLeave={handleDrag}
+                onDragOver={handleDrag}
+                onDrop={handleDrop}
+              >
+                <div className="space-y-4">
+                  <div className="text-4xl">📁</div>
+                  <div>
+                    <p className="text-lg font-medium text-gray-900">Drag & drop your invoice files here</p>
+                    <p className="text-gray-600 mt-1">
+                      or{" "}
+                      <span
+                        className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium"
+                        onClick={() => document.getElementById('fileInput').click()}
+                      >
+                        click to browse
+                      </span>
+                    </p>
+                    <p className="text-sm text-gray-500 mt-2">Supports PDF and image files</p>
+                  </div>
+                </div>
+                <input
+                  type="file"
+                  multiple
+                  accept="application/pdf,image/*"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                  id="fileInput"
+                  disabled={uploading}
+                />
+              </div>
+
+              {/* Selected Files */}
+              {selectedFiles.length > 0 && (
+                <div className="mt-6">
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">Selected Files ({selectedFiles.length})</h3>
+                  <div className="space-y-3 max-h-40 overflow-y-auto">
+                    {selectedFiles.map((file, index) => (
+                      <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">{file.name}</p>
+                          <p className="text-xs text-gray-500">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                        </div>
+                        {uploading && (
+                          <div className="w-24 bg-gray-200 rounded-full h-2 ml-4">
+                            <div
+                              className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                              style={{ width: `${uploadProgress[index] || 0}%` }}
+                            />
+                          </div>
+                        )}
+                        {!uploading && (
+                          <button
+                            className="ml-4 text-red-600 hover:text-red-700 text-sm font-medium"
+                            onClick={() => removeFile(index)}
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-gray-200">
+                <button
+                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  onClick={closeModal}
+                  disabled={uploading}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={handleUpload}
+                  disabled={selectedFiles.length === 0 || uploading}
+                >
+                  {uploading ? 'Uploading...' : `Upload ${selectedFiles.length} File(s)`}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </ClientLayout>
   );
 }
