@@ -2,7 +2,5 @@
   "/_app": "pages/_app.js",
   "/_error": "pages/_error.js",
   "/_document": "pages/_document.js",
-  "/client/ingredients": "pages/client/ingredients.js",
-  "/client/menu-items/[id]": "pages/client/menu-items/[id].js",
-  "/client/menu-items": "pages/client/menu-items.js"
+  "/client/login": "pages/client/login.js"
 }
