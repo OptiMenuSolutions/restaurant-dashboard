@@ -51,6 +51,7 @@ export default function MenuItems() {
   const [viewMode, setViewMode] = useState('details'); // 'details' or 'optimize'
   const [optimizedIngredients, setOptimizedIngredients] = useState({});
   const [optimizedPrice, setOptimizedPrice] = useState(null);
+  const [showInput, setShowInput] = useState(null);
 
   const getUserInitials = (name) => {
     if (!name) return "U";
@@ -789,6 +790,8 @@ export default function MenuItems() {
                       optimizedPrice={optimizedPrice}
                       setOptimizedPrice={setOptimizedPrice}
                       resetOptimizer={resetOptimizer}
+                      showInput={showInput}
+                      setShowInput={setShowInput}
                     />
                   ) : null}
                 </div>
@@ -814,7 +817,9 @@ function MenuItemDetailContent({
   setOptimizedIngredients,
   optimizedPrice,
   setOptimizedPrice,
-  resetOptimizer
+  resetOptimizer,
+  showInput,
+  setShowInput
 }) {
   const { menuItem, ingredients, components, costHistory } = data;
 
@@ -1381,18 +1386,15 @@ function MenuItemDetailContent({
       // NEW OPTIMIZER VIEW
       <>
         {/* Optimizer Header */}
-        <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex items-center justify-between mb-2">
-            <h1 className="text-xl font-bold text-gray-900">{menuItem.name} - Recipe Optimizer</h1>
-            <button
-              onClick={resetOptimizer}
-              className="flex items-center gap-1 px-3 py-1 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-100 rounded-md transition-colors"
-            >
-              <IconRefresh size={14} />
-              Reset
-            </button>
-          </div>
-          <p className="text-gray-600 text-sm">Adjust portions and pricing to optimize your margins</p>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-xl font-bold text-gray-900">{menuItem.name}</h1>
+          <button
+            onClick={resetOptimizer}
+            className="flex items-center gap-1 px-3 py-1 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-100 rounded-md transition-colors"
+          >
+            <IconRefresh size={14} />
+            Reset
+          </button>
         </div>
 
         {/* Comparison Cards */}
@@ -1543,57 +1545,79 @@ function MenuItemDetailContent({
                   {/* Component Controls - Always Visible */}
                   <div className="bg-white p-4">
                     
-                    <div className="p-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-sm font-medium text-gray-700">Portion Size:</span>
-                        <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
+                      <span className="text-xs font-medium text-gray-700 whitespace-nowrap">Portion Size:</span>
+                      
+                      <div className="flex-1 flex items-center gap-2 relative">
+                        <span className="text-xs text-gray-400">0%</span>
+                        
+                        <div 
+                          className="flex-1 relative"
+                          onMouseEnter={() => setShowInput(component.id)}
+                          onMouseLeave={(e) => {
+                            // Only hide if we're not moving to the textbox
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const textboxRect = document.querySelector(`[data-textbox="${component.id}"]`)?.getBoundingClientRect();
+                            if (!textboxRect || e.clientY < textboxRect.bottom) {
+                              setTimeout(() => setShowInput(null), 100);
+                            }
+                          }}
+                        >
                           <input
-                            type="number"
+                            type="range"
                             min="0"
                             max="200"
+                            step="1"
                             value={Math.round(multiplier * 100)}
-                            onChange={(e) => {
-                              const percentage = parseInt(e.target.value) || 0;
-                              updateComponentMultiplier(component.id, percentage / 100);
+                            onChange={(e) => updateComponentMultiplier(component.id, parseInt(e.target.value) / 100)}
+                            className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                            style={{
+                              background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${(multiplier * 100 / 200) * 100}%, #e5e7eb ${(multiplier * 100 / 200) * 100}%, #e5e7eb 100%)`
                             }}
-                            onKeyPress={(e) => {
-                              if (e.key === 'Enter') {
-                                e.target.blur();
-                              }
-                            }}
-                            className="w-16 px-2 py-1 text-center border border-gray-300 rounded text-sm font-medium"
                           />
-                          <span className="text-sm text-gray-600">%</span>
+                          
+                          {/* Hover textbox */}
+                          {showInput === component.id && (
+                            <div 
+                              data-textbox={component.id}
+                              className="absolute -top-12 bg-white border border-gray-300 rounded shadow-lg px-2 py-1 z-10"
+                              style={{
+                                left: `${(multiplier * 100 / 200) * 100}%`,
+                                transform: 'translateX(-50%)'
+                              }}
+                              onMouseEnter={() => setShowInput(component.id)}
+                              onMouseLeave={() => setTimeout(() => setShowInput(null), 100)}
+                            >
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="200"
+                                  value={Math.round(multiplier * 100)}
+                                  onChange={(e) => {
+                                    const percentage = parseInt(e.target.value) || 0;
+                                    updateComponentMultiplier(component.id, percentage / 100);
+                                  }}
+                                  onKeyPress={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.target.blur();
+                                      setShowInput(null);
+                                    }
+                                  }}
+                                  onFocus={(e) => e.target.select()}
+                                  onClick={(e) => e.target.select()}
+                                  autoFocus
+                                  className="w-12 px-1 py-0.5 text-center border-0 text-xs font-medium focus:outline-none"
+                                />
+                                <span className="text-xs text-gray-600">%</span>
+                              </div>
+                              {/* Small arrow pointing down */}
+                              <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-white"></div>
+                            </div>
+                          )}
                         </div>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <input
-                          type="range"
-                          min="0"
-                          max="200"
-                          step="1"
-                          value={Math.round(multiplier * 100)}
-                          onChange={(e) => updateComponentMultiplier(component.id, parseInt(e.target.value) / 100)}
-                          className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                          style={{
-                            background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${(multiplier * 100 / 200) * 100}%, #e5e7eb ${(multiplier * 100 / 200) * 100}%, #e5e7eb 100%)`
-                          }}
-                        />
                         
-                        <div className="flex justify-between text-xs text-gray-500">
-                          <span>0%</span>
-                          <span>100%</span>
-                          <span>200%</span>
-                        </div>
-                      </div>
-                      
-                      <div className="mt-2 text-center">
-                        <div className="text-xs text-gray-600">
-                          {multiplier < 1.0 ? `${((1 - multiplier) * 100).toFixed(0)}% smaller portion` :
-                          multiplier > 1.0 ? `${((multiplier - 1) * 100).toFixed(0)}% larger portion` :
-                          'Standard portion size'}
-                        </div>
+                        <span className="text-xs text-gray-400">200%</span>
                       </div>
                     </div>
                     
