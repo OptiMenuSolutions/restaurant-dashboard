@@ -27,6 +27,7 @@ import {
   IconChevronDown,
   IconEyeOff,
   IconCheck,
+  IconPlus,
 } from "@tabler/icons-react";
 
 export default function MenuItems() {
@@ -39,6 +40,7 @@ export default function MenuItems() {
   const [sortOrder, setSortOrder] = useState("asc");
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All");
+  const [userName, setUserName] = useState("");
   
   // Split view state
   const [selectedMenuItem, setSelectedMenuItem] = useState(null);
@@ -46,6 +48,18 @@ export default function MenuItems() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState("");
   const [expandedComponents, setExpandedComponents] = useState(new Set());
+  const [viewMode, setViewMode] = useState('details'); // 'details' or 'optimize'
+  const [optimizedIngredients, setOptimizedIngredients] = useState({});
+  const [optimizedPrice, setOptimizedPrice] = useState(null);
+
+  const getUserInitials = (name) => {
+    if (!name) return "U";
+    return name.split(' ')
+      .map(part => part.charAt(0))
+      .join('')
+      .substring(0, 2)
+      .toUpperCase();
+  }
 
   useEffect(() => {
     getRestaurantId();
@@ -75,7 +89,7 @@ export default function MenuItems() {
 
       const { data, error } = await supabase
         .from("profiles")
-        .select("restaurant_id")
+        .select("restaurant_id, full_name")
         .eq("id", user.id)
         .single();
 
@@ -86,6 +100,8 @@ export default function MenuItems() {
       }
 
       setRestaurantId(data.restaurant_id);
+      const firstName = data.full_name ? data.full_name.split(' ')[0] : "User";
+      setUserName(firstName);
     } catch (err) {
       setError("An unexpected error occurred");
       setLoading(false);
@@ -291,6 +307,8 @@ export default function MenuItems() {
   function handleCardClick(id) {
     setSelectedMenuItem(id);
     setExpandedComponents(new Set()); // Reset expanded components
+    setViewMode('details');
+    resetOptimizer();
   }
 
   function handleCloseDetail() {
@@ -396,6 +414,11 @@ export default function MenuItems() {
     setSearchTerm("");
   }
 
+  function resetOptimizer() {
+    setOptimizedIngredients({});
+    setOptimizedPrice(null);
+  }
+
   function getIngredientCount(menuItem) {
     if (menuItem.menu_item_components && menuItem.menu_item_components.length > 0) {
       const uniqueIngredientIds = new Set();
@@ -479,56 +502,71 @@ export default function MenuItems() {
       pageDescription="Monitor menu item costs and profitability"
       pageIcon={IconChefHat}
     >
-      {/* Centered Search Bar */}
-      <div className="flex justify-center items-center gap-4 mb-6">
-        <div className="relative w-96">
-          <input
-            type="text"
-            placeholder="Search menu items by name..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-sm"
-          />
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <IconSearch size={16} className="text-gray-400" />
-          </div>
-          {searchTerm && (
-            <button 
-              onClick={clearSearch} 
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              <IconX size={16} />
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Sort Controls */}
+      {/* Header Section - All in one line */}
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-lg font-semibold text-gray-900">
-          {filteredMenuItems.length} Menu Item{filteredMenuItems.length !== 1 ? 's' : ''}
-          {searchTerm && ` (filtered from ${menuItems.length})`}
-        </h2>
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-600">Sort by:</span>
-          <select 
-            value={`${sortBy}-${sortOrder}`}
-            onChange={(e) => {
-              const [field, direction] = e.target.value.split('-');
-              setSortBy(field);
-              setSortOrder(direction);
-            }}
-            className="border border-gray-300 rounded px-3 py-1 text-sm bg-white"
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Menu Engineering</h1>
+          <p className="text-gray-600 text-sm mt-1">Optimize pricing and profitability</p>
+        </div>
+        
+        <div className="flex items-center gap-4">
+          {/* Search Bar */}
+          <div className="relative w-96">
+            <input
+              type="text"
+              placeholder="Search menu items by name..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-sm"
+            />
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <IconSearch size={16} className="text-gray-400" />
+            </div>
+            {searchTerm && (
+              <button 
+                onClick={clearSearch} 
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <IconX size={16} />
+              </button>
+            )}
+          </div>
+          
+          {/* Sort Control */}
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600">Sort:</span>
+            <select 
+              value={`${sortBy}-${sortOrder}`}
+              onChange={(e) => {
+                const [field, direction] = e.target.value.split('-');
+                setSortBy(field);
+                setSortOrder(direction);
+              }}
+              className="border border-gray-300 rounded px-3 py-2 text-sm bg-white min-w-0"
+            >
+              <option value="name-asc">Name (A-Z)</option>
+              <option value="name-desc">Name (Z-A)</option>
+              <option value="price-desc">Price (High-Low)</option>
+              <option value="price-asc">Price (Low-High)</option>
+              <option value="cost-desc">Cost (High-Low)</option>
+              <option value="cost-asc">Cost (Low-High)</option>
+              <option value="margin-desc">Margin (High-Low)</option>
+              <option value="margin-asc">Margin (Low-High)</option>
+            </select>
+          </div>
+          
+          {/* Add Menu Item Button */}
+          <button
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
           >
-            <option value="name-asc">Name (A-Z)</option>
-            <option value="name-desc">Name (Z-A)</option>
-            <option value="price-desc">Price (High to Low)</option>
-            <option value="price-asc">Price (Low to High)</option>
-            <option value="cost-desc">Cost (High to Low)</option>
-            <option value="cost-asc">Cost (Low to High)</option>
-            <option value="margin-desc">Margin (High to Low)</option>
-            <option value="margin-asc">Margin (Low to High)</option>
-          </select>
+            <IconPlus size={16} />
+            Add Item
+          </button>
+          
+          {/* User Profile Circle */}
+          <div className="flex items-center justify-center w-10 h-10 bg-blue-600 text-white rounded-full font-semibold text-sm cursor-pointer hover:bg-blue-700 transition-colors">
+            {getUserInitials(userName)}
+          </div>
         </div>
       </div>
 
@@ -660,13 +698,37 @@ export default function MenuItems() {
                     <IconChefHat size={20} />
                     Menu Item Details
                   </h2>
-                  <button 
-                    onClick={handleCloseDetail}
-                    className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded-md transition-colors"
-                  >
-                    <IconX size={16} />
-                    Close
-                  </button>
+                  <div className="flex items-center gap-4">
+                    <div className="flex bg-gray-100 rounded-lg p-1">
+                      <button
+                        onClick={() => setViewMode('details')}
+                        className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                          viewMode === 'details' 
+                            ? 'bg-white text-gray-900 shadow-sm' 
+                            : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                      >
+                        View Details
+                      </button>
+                      <button
+                        onClick={() => setViewMode('optimize')}
+                        className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                          viewMode === 'optimize' 
+                            ? 'bg-white text-gray-900 shadow-sm' 
+                            : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                      >
+                        Optimize Recipe
+                      </button>
+                    </div>
+                    <button 
+                      onClick={handleCloseDetail}
+                      className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded-md transition-colors"
+                    >
+                      <IconX size={16} />
+                      Close
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -720,6 +782,13 @@ export default function MenuItems() {
                       }}
                       expandedComponents={expandedComponents}
                       setExpandedComponents={setExpandedComponents}
+                      // Add these new props:
+                      viewMode={viewMode}
+                      optimizedIngredients={optimizedIngredients}
+                      setOptimizedIngredients={setOptimizedIngredients}
+                      optimizedPrice={optimizedPrice}
+                      setOptimizedPrice={setOptimizedPrice}
+                      resetOptimizer={resetOptimizer}
                     />
                   ) : null}
                 </div>
@@ -739,7 +808,13 @@ function MenuItemDetailContent({
   formatDate, 
   formatDateTime, 
   expandedComponents, 
-  setExpandedComponents 
+  setExpandedComponents,
+  viewMode,
+  optimizedIngredients,
+  setOptimizedIngredients,
+  optimizedPrice,
+  setOptimizedPrice,
+  resetOptimizer
 }) {
   const { menuItem, ingredients, components, costHistory } = data;
 
@@ -834,124 +909,576 @@ function MenuItemDetailContent({
     return missingIngredients;
   }
 
+  function getOptimizedComponentMultiplier(componentId) {
+    return optimizedIngredients[componentId]?.multiplier ?? 1.0;
+  }
+
+  function updateComponentMultiplier(componentId, newMultiplier) {
+    setOptimizedIngredients(prev => ({
+      ...prev,
+      [componentId]: { multiplier: Math.max(0, newMultiplier) }
+    }));
+  }
+
+  function calculateOptimizedTotalCost() {
+    if (components.length > 0) {
+      return components.reduce((total, component) => {
+        const multiplier = getOptimizedComponentMultiplier(component.id);
+        return total + (component.calculatedCost * multiplier);
+      }, 0);
+    } else {
+      return ingredients.reduce((total, item) => {
+        const multiplier = getOptimizedComponentMultiplier('ingredients');
+        return total + (calculateIngredientCost(item.ingredients, item.quantity) * multiplier);
+      }, 0);
+    }
+  }
+
+  function calculateOptimizedMargin() {
+    const price = parseFloat((optimizedPrice ?? menuItem?.price) || 0);
+    const cost = calculateOptimizedTotalCost();
+    
+    if (price === 0) return null;
+    return ((price - cost) / price) * 100;
+  }
+
   const totalCost = calculateTotalCost();
   const profitMargin = calculateProfitMargin();
   const marginColorClass = getMarginColor(profitMargin);
   const missingPriceIngredients = getMissingPriceIngredients();
 
   return (
-    <div className="space-y-6">
-      {/* Menu Item Header */}
-      <div>
-        <h1 className="text-xl font-bold text-gray-900 mb-2">{menuItem.name}</h1>
-        <div className="flex items-center gap-2">
-          <span className="text-lg font-semibold text-green-600">
-            {menuItem.price ? formatCurrency(menuItem.price) : "No price set"}
-          </span>
+  <div className="space-y-6">
+    {viewMode === 'details' ? (
+      <>
+        {/* Menu Item Header */}
+        <div>
+          <h1 className="text-xl font-bold text-gray-900 mb-2">{menuItem.name}</h1>
+          <div className="flex items-center gap-2">
+            <span className="text-lg font-semibold text-green-600">
+              {menuItem.price ? formatCurrency(menuItem.price) : "No price set"}
+            </span>
+          </div>
         </div>
-      </div>
 
-      {/* Overview Cards */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-10 h-10 bg-green-100 rounded-lg">
-              <IconCurrencyDollar size={20} className="text-green-600" />
+        {/* Overview Cards */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-10 h-10 bg-green-100 rounded-lg">
+                <IconCurrencyDollar size={20} className="text-green-600" />
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 mb-1">Menu Price</p>
+                <p className="text-lg font-bold text-gray-900">
+                  {menuItem.price ? formatCurrency(menuItem.price) : "Not set"}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs text-gray-500 mb-1">Menu Price</p>
-              <p className="text-lg font-bold text-gray-900">
-                {menuItem.price ? formatCurrency(menuItem.price) : "Not set"}
-              </p>
+          </div>
+          
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-10 h-10 bg-blue-100 rounded-lg">
+                <IconPackage size={20} className="text-blue-600" />
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 mb-1">Total Cost</p>
+                <p className="text-lg font-bold text-gray-900">
+                  {formatCurrency(totalCost)}
+                </p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-10 h-10 bg-purple-100 rounded-lg">
+                <IconTrendingUp size={20} className="text-purple-600" />
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 mb-1">Profit Margin</p>
+                <p className={`text-lg font-bold ${marginColorClass}`}>
+                  {profitMargin !== null ? `${profitMargin.toFixed(1)}%` : "N/A"}
+                </p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-10 h-10 bg-orange-100 rounded-lg">
+                <IconChefHat size={20} className="text-orange-600" />
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 mb-1">Ingredients</p>
+                <p className="text-lg font-bold text-gray-900">
+                  {getUniqueIngredientCount()}
+                </p>
+              </div>
             </div>
           </div>
         </div>
-        
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-10 h-10 bg-blue-100 rounded-lg">
-              <IconPackage size={20} className="text-blue-600" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 mb-1">Total Cost</p>
-              <p className="text-lg font-bold text-gray-900">
-                {formatCurrency(totalCost)}
-              </p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-10 h-10 bg-purple-100 rounded-lg">
-              <IconTrendingUp size={20} className="text-purple-600" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 mb-1">Profit Margin</p>
-              <p className={`text-lg font-bold ${marginColorClass}`}>
-                {profitMargin !== null ? `${profitMargin.toFixed(1)}%` : "N/A"}
-              </p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-10 h-10 bg-orange-100 rounded-lg">
-              <IconChefHat size={20} className="text-orange-600" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 mb-1">Ingredients</p>
-              <p className="text-lg font-bold text-gray-900">
-                {getUniqueIngredientCount()}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* Alert for missing data */}
-      {missingPriceIngredients.length > 0 && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <div className="flex items-start gap-3">
-            <div className="flex items-center justify-center w-8 h-8 bg-yellow-100 rounded-lg">
-              <IconExclamationCircle size={16} className="text-yellow-600" />
+        {/* Alert for missing data */}
+        {missingPriceIngredients.length > 0 && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <div className="flex items-center justify-center w-8 h-8 bg-yellow-100 rounded-lg">
+                <IconExclamationCircle size={16} className="text-yellow-600" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-yellow-800 mb-1">Missing Ingredient Pricing</h3>
+                <p className="text-xs text-yellow-700">
+                  {missingPriceIngredients.length} ingredient{missingPriceIngredients.length !== 1 ? 's' : ''} 
+                  {missingPriceIngredients.length === 1 ? ' is' : ' are'} missing price data.
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-sm font-semibold text-yellow-800 mb-1">Missing Ingredient Pricing</h3>
-              <p className="text-xs text-yellow-700">
-                {missingPriceIngredients.length} ingredient{missingPriceIngredients.length !== 1 ? 's' : ''} 
-                {missingPriceIngredients.length === 1 ? ' is' : ' are'} missing price data.
-              </p>
+          </div>
+        )}
+
+        {/* Ingredients Breakdown */}
+        {components.length > 0 ? (
+          // Component-based breakdown
+          <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+            <div className="bg-gray-50 border-b border-gray-200 px-4 py-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                  <IconChefHat size={16} />
+                  Component Breakdown
+                </h3>
+                <div className="flex items-center gap-2">
+                  <div className="text-xs text-gray-500">
+                    {components.length} component{components.length !== 1 ? 's' : ''}
+                  </div>
+                  <div className="flex gap-1">
+                    <button 
+                      onClick={expandAll}
+                      className="flex items-center gap-1 px-2 py-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded transition-colors"
+                    >
+                      <IconEye size={12} />
+                      Expand
+                    </button>
+                    <button 
+                      onClick={collapseAll}
+                      className="flex items-center gap-1 px-2 py-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded transition-colors"
+                    >
+                      <IconEyeOff size={12} />
+                      Collapse
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 space-y-3">
+              {components.map(component => {
+                const isExpanded = expandedComponents.has(component.id);
+                const costDiscrepancy = Math.abs(component.storedCost - component.calculatedCost);
+                const hasDiscrepancy = costDiscrepancy > 0.01;
+
+                return (
+                  <div key={component.id} className="border border-gray-200 rounded-lg overflow-hidden">
+                    {/* Component Header */}
+                    <div 
+                      className="bg-gray-50 px-3 py-2 cursor-pointer hover:bg-gray-100 transition-colors"
+                      onClick={() => toggleComponent(component.id)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="text-gray-400">
+                            {isExpanded ? (
+                              <IconChevronDown size={16} />
+                            ) : (
+                              <IconChevronRight size={16} />
+                            )}
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-semibold text-gray-900">{component.name}</h4>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-xs text-gray-500">
+                                {component.ingredientCount} ingredient{component.ingredientCount !== 1 ? 's' : ''}
+                              </span>
+                              {hasDiscrepancy && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-700">
+                                  <IconExclamationCircle size={8} />
+                                  Mismatch
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm font-bold text-gray-900">
+                            ${component.calculatedCost.toFixed(2)}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {totalCost > 0 ? 
+                              ((component.calculatedCost / totalCost) * 100).toFixed(1) : 0
+                            }% of total
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Expanded Ingredients */}
+                    {isExpanded && (
+                      <div className="bg-white">
+                        <div className="px-3 py-2">
+                          {component.ingredients.map((ingredient, ingredientIndex) => {
+                            const isLast = ingredientIndex === component.ingredients.length - 1;
+                            
+                            return (
+                              <div key={ingredient.id} className="relative">
+                                {/* Tree structure lines */}
+                                <div className="absolute left-4 top-0 w-px bg-gray-300" style={{
+                                  height: isLast ? '12px' : '100%'
+                                }}></div>
+                                <div className="absolute left-4 top-3 w-4 h-px bg-gray-300"></div>
+                                
+                                <div className="flex items-center justify-between py-1.5 pl-10 pr-2">
+                                  <div className="flex-1">
+                                    <div className="flex items-center justify-between">
+                                      <div>
+                                        <span className="text-sm font-medium text-gray-900">{ingredient.name}</span>
+                                        <div className="text-xs text-gray-500 mt-0.5">
+                                          {ingredient.quantity} {ingredient.unit}
+                                          {ingredient.lastOrdered && (
+                                            <span className="ml-2">• Last ordered {formatDate(ingredient.lastOrdered)}</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                      <div className="text-right ml-3">
+                                        <div className="text-sm font-semibold text-gray-900">
+                                          ${ingredient.totalCost.toFixed(3)}
+                                        </div>
+                                        <div className="text-xs text-gray-500">
+                                          {ingredient.hasPrice ? (
+                                            `${ingredient.unitCost.toFixed(3)}/${ingredient.standardUnit}`
+                                          ) : (
+                                            'No price'
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="ml-2">
+                                    {ingredient.hasPrice ? (
+                                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                    ) : (
+                                      <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        
+                        {/* Component Total */}
+                        <div className="bg-gray-50 px-3 py-2 border-t border-gray-200">
+                          <div className="flex justify-between items-center">
+                            <span className="text-xs font-medium text-gray-700">Component Total</span>
+                            <span className="text-sm font-bold text-gray-900">${component.calculatedCost.toFixed(2)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Summary Footer */}
+            <div className="bg-gray-50 border-t border-gray-200 px-4 py-3">
+              <div className="grid grid-cols-1 gap-3">
+                <div className="text-center">
+                  <div className="text-xs text-gray-500 mb-1">Total Food Cost</div>
+                  <div className="text-lg font-bold text-gray-900">${totalCost.toFixed(2)}</div>
+                </div>
+                {menuItem.price && (
+                  <>
+                    <div className="text-center">
+                      <div className="text-xs text-gray-500 mb-1">Profit per Item</div>
+                      <div className="text-lg font-bold text-green-600">
+                        {formatCurrency(parseFloat(menuItem.price) - totalCost)}
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xs text-gray-500 mb-1">Food Cost %</div>
+                      <div className={`text-lg font-bold ${
+                        ((totalCost / parseFloat(menuItem.price)) * 100) < 25 ? 'text-green-600' :
+                        ((totalCost / parseFloat(menuItem.price)) * 100) < 35 ? 'text-yellow-600' : 'text-red-600'
+                      }`}>
+                        {((totalCost / parseFloat(menuItem.price)) * 100).toFixed(1)}%
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Pricing Recommendations */}
+            <div className="bg-white border-t border-gray-200 px-4 py-3">
+              <h4 className="text-xs font-semibold text-gray-900 mb-2 flex items-center gap-1">
+                <IconTrendingUp size={12} />
+                Pricing Recommendations
+              </h4>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="text-center p-2 bg-gray-50 rounded">
+                  <div className="text-xs text-gray-500 mb-1">Break-even (30%)</div>
+                  <div className="text-sm font-semibold text-gray-900">
+                    ${(totalCost / 0.30).toFixed(2)}
+                  </div>
+                </div>
+                <div className="text-center p-2 bg-green-50 rounded">
+                  <div className="text-xs text-gray-500 mb-1">Recommended (25%)</div>
+                  <div className="text-sm font-semibold text-green-700">
+                    ${(totalCost / 0.25).toFixed(2)}
+                  </div>
+                </div>
+                <div className="text-center p-2 bg-blue-50 rounded">
+                  <div className="text-xs text-gray-500 mb-1">Premium (20%)</div>
+                  <div className="text-sm font-semibold text-blue-700">
+                    ${(totalCost / 0.20).toFixed(2)}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : ingredients.length > 0 ? (
+          // Original ingredient-based breakdown
+          <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+            <div className="bg-gray-50 border-b border-gray-200 px-4 py-3">
+              <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                <IconChefHat size={16} />
+                Ingredient Breakdown
+              </h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="text-left py-2 px-3 text-xs font-semibold text-gray-900">Ingredient</th>
+                    <th className="text-left py-2 px-3 text-xs font-semibold text-gray-900">Qty</th>
+                    <th className="text-left py-2 px-3 text-xs font-semibold text-gray-900">Cost</th>
+                    <th className="text-left py-2 px-3 text-xs font-semibold text-gray-900">Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {ingredients.map((item, index) => {
+                    const ingredient = item.ingredients;
+                    const cost = calculateIngredientCost(ingredient, item.quantity);
+                    const hasPrice = ingredient?.last_price && parseFloat(ingredient.last_price) > 0;
+                    
+                    return (
+                      <tr key={index} className="hover:bg-gray-50">
+                        <td className="py-2 px-3">
+                          <span className="text-sm font-medium text-gray-900">
+                            {ingredient?.name || "Unknown ingredient"}
+                          </span>
+                        </td>
+                        <td className="py-2 px-3 text-gray-900 text-xs">
+                          {item.quantity} {ingredient?.unit || "units"}
+                        </td>
+                        <td className="py-2 px-3">
+                          {hasPrice ? (
+                            <span className="text-xs font-medium text-green-600">
+                              {formatCurrency(ingredient.last_price)}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-red-500 italic">No price</span>
+                          )}
+                        </td>
+                        <td className="py-2 px-3">
+                          <span className="text-xs font-medium text-gray-900">
+                            {formatCurrency(cost)}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot className="bg-gray-50">
+                  <tr>
+                    <td colSpan="3" className="py-2 px-3 text-xs font-semibold text-gray-900">Total:</td>
+                    <td className="py-2 px-3 text-xs font-bold text-gray-900">
+                      {formatCurrency(totalCost)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-white border border-gray-200 rounded-lg p-8 text-center">
+            <div className="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full mx-auto mb-4">
+              <IconChefHat size={24} className="text-gray-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No Ingredients Found</h3>
+            <p className="text-sm text-gray-600">This menu item doesn't have any ingredients or components configured yet.</p>
+          </div>
+        )}
+
+        {/* Cost History */}
+        {costHistory.length > 0 && (
+          <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+            <div className="bg-gray-50 border-b border-gray-200 px-4 py-3">
+              <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                <IconChartLine size={16} />
+                Cost Change History
+              </h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="text-left py-2 px-3 text-xs font-semibold text-gray-900">Date</th>
+                    <th className="text-left py-2 px-3 text-xs font-semibold text-gray-900">Previous</th>
+                    <th className="text-left py-2 px-3 text-xs font-semibold text-gray-900">New</th>
+                    <th className="text-left py-2 px-3 text-xs font-semibold text-gray-900">Change</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {costHistory.map((record) => {
+                    const change = parseFloat(record.new_cost || 0) - parseFloat(record.old_cost || 0);
+                    const isIncrease = change > 0;
+                    
+                    return (
+                      <tr key={record.id} className="hover:bg-gray-50">
+                        <td className="py-2 px-3 text-xs text-gray-900">
+                          {formatDateTime(record.created_at)}
+                        </td>
+                        <td className="py-2 px-3 text-xs text-gray-900">
+                          {formatCurrency(record.old_cost)}
+                        </td>
+                        <td className="py-2 px-3 text-xs text-gray-900">
+                          {formatCurrency(record.new_cost)}
+                        </td>
+                        <td className="py-2 px-3">
+                          <div className="flex items-center gap-1">
+                            {isIncrease ? (
+                              <IconTrendingUp size={12} className="text-red-500" />
+                            ) : (
+                              <IconTrendingDown size={12} className="text-green-500" />
+                            )}
+                            <span className={`text-xs font-medium ${isIncrease ? 'text-red-500' : 'text-green-500'}`}>
+                              {isIncrease ? '+' : ''}{formatCurrency(change)}
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </>
+    ) : (
+      // NEW OPTIMIZER VIEW
+      <>
+        {/* Optimizer Header */}
+        <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-center justify-between mb-2">
+            <h1 className="text-xl font-bold text-gray-900">{menuItem.name} - Recipe Optimizer</h1>
+            <button
+              onClick={resetOptimizer}
+              className="flex items-center gap-1 px-3 py-1 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-100 rounded-md transition-colors"
+            >
+              <IconRefresh size={14} />
+              Reset
+            </button>
+          </div>
+          <p className="text-gray-600 text-sm">Adjust portions and pricing to optimize your margins</p>
+        </div>
+
+        {/* Comparison Cards */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-white border border-gray-200 rounded-lg p-4">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+              <IconClipboardList size={16} />
+              Original Recipe
+            </h3>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Cost:</span>
+                <span className="font-medium">{formatCurrency(totalCost)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Price:</span>
+                <span className="font-medium">{formatCurrency(menuItem.price)}</span>
+              </div>
+              <div className="flex justify-between border-t pt-2">
+                <span className="text-gray-600">Margin:</span>
+                <span className={`font-bold ${marginColorClass}`}>
+                  {profitMargin !== null ? `${profitMargin.toFixed(1)}%` : "N/A"}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-green-50 to-blue-50 border border-green-200 rounded-lg p-4">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+              <IconTrendingUp size={16} />
+              Optimized Recipe
+            </h3>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Cost:</span>
+                <span className="font-medium">{formatCurrency(calculateOptimizedTotalCost())}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Price:</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={optimizedPrice ?? menuItem.price ?? ''}
+                    onChange={(e) => setOptimizedPrice(parseFloat(e.target.value) || null)}
+                    className="w-20 px-2 py-1 text-right border border-gray-300 rounded text-xs"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-between border-t pt-2">
+                <span className="text-gray-600">Margin:</span>
+                <span className={`font-bold ${getMarginColor(calculateOptimizedMargin())}`}>
+                  {calculateOptimizedMargin() !== null ? `${calculateOptimizedMargin().toFixed(1)}%` : "N/A"}
+                </span>
+              </div>
             </div>
           </div>
         </div>
-      )}
 
-      {/* Ingredients Breakdown */}
+      {/* Interactive Components */}
       {components.length > 0 ? (
-        // Component-based breakdown
         <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
           <div className="bg-gray-50 border-b border-gray-200 px-4 py-3">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-                <IconChefHat size={16} />
-                Component Breakdown
-              </h3>
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                  <IconChefHat size={16} />
+                  Adjust Component Portions
+                </h3>
+                <p className="text-xs text-gray-500 mt-1">Scale entire components up or down while maintaining ingredient ratios</p>
+              </div>
               <div className="flex items-center gap-2">
                 <div className="text-xs text-gray-500">
                   {components.length} component{components.length !== 1 ? 's' : ''}
                 </div>
                 <div className="flex gap-1">
                   <button 
-                    onClick={expandAll}
+                    onClick={() => setExpandedComponents(new Set(components.map(c => c.id)))}
                     className="flex items-center gap-1 px-2 py-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded transition-colors"
                   >
                     <IconEye size={12} />
                     Expand
                   </button>
                   <button 
-                    onClick={collapseAll}
+                    onClick={() => setExpandedComponents(new Set())}
                     className="flex items-center gap-1 px-2 py-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded transition-colors"
                   >
                     <IconEyeOff size={12} />
@@ -961,19 +1488,28 @@ function MenuItemDetailContent({
               </div>
             </div>
           </div>
-
           <div className="p-4 space-y-3">
             {components.map(component => {
+              const multiplier = getOptimizedComponentMultiplier(component.id);
+              const originalCost = component.calculatedCost;
+              const newCost = originalCost * multiplier;
+              const costChange = newCost - originalCost;
               const isExpanded = expandedComponents.has(component.id);
-              const costDiscrepancy = Math.abs(component.storedCost - component.calculatedCost);
-              const hasDiscrepancy = costDiscrepancy > 0.01;
-
+              
               return (
                 <div key={component.id} className="border border-gray-200 rounded-lg overflow-hidden">
-                  {/* Component Header */}
+                  {/* Component Header - Clickable */}
                   <div 
                     className="bg-gray-50 px-3 py-2 cursor-pointer hover:bg-gray-100 transition-colors"
-                    onClick={() => toggleComponent(component.id)}
+                    onClick={() => {
+                      const newSet = new Set(expandedComponents);
+                      if (newSet.has(component.id)) {
+                        newSet.delete(component.id);
+                      } else {
+                        newSet.add(component.id);
+                      }
+                      setExpandedComponents(newSet);
+                    }}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -990,58 +1526,112 @@ function MenuItemDetailContent({
                             <span className="text-xs text-gray-500">
                               {component.ingredientCount} ingredient{component.ingredientCount !== 1 ? 's' : ''}
                             </span>
-                            {hasDiscrepancy && (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-700">
-                                <IconExclamationCircle size={8} />
-                                Mismatch
-                              </span>
-                            )}
                           </div>
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-sm font-bold text-gray-900">
-                          ${component.calculatedCost.toFixed(2)}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {totalCost > 0 ? 
-                            ((component.calculatedCost / totalCost) * 100).toFixed(1) : 0
-                          }% of total
-                        </div>
+                        <div className="text-sm font-bold text-gray-900">{formatCurrency(newCost)}</div>
+                        {costChange !== 0 && (
+                          <div className={`text-xs ${costChange > 0 ? 'text-red-500' : 'text-green-500'}`}>
+                            {costChange > 0 ? '+' : ''}{formatCurrency(costChange)}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
 
-                  {/* Expanded Ingredients */}
-                  {isExpanded && (
-                    <div className="bg-white">
-                      <div className="px-3 py-2">
+                  {/* Component Controls - Always Visible */}
+                  <div className="bg-white p-4">
+                    
+                    <div className="p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-sm font-medium text-gray-700">Portion Size:</span>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min="0"
+                            max="200"
+                            value={Math.round(multiplier * 100)}
+                            onChange={(e) => {
+                              const percentage = parseInt(e.target.value) || 0;
+                              updateComponentMultiplier(component.id, percentage / 100);
+                            }}
+                            onKeyPress={(e) => {
+                              if (e.key === 'Enter') {
+                                e.target.blur();
+                              }
+                            }}
+                            className="w-16 px-2 py-1 text-center border border-gray-300 rounded text-sm font-medium"
+                          />
+                          <span className="text-sm text-gray-600">%</span>
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <input
+                          type="range"
+                          min="0"
+                          max="200"
+                          step="1"
+                          value={Math.round(multiplier * 100)}
+                          onChange={(e) => updateComponentMultiplier(component.id, parseInt(e.target.value) / 100)}
+                          className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                          style={{
+                            background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${(multiplier * 100 / 200) * 100}%, #e5e7eb ${(multiplier * 100 / 200) * 100}%, #e5e7eb 100%)`
+                          }}
+                        />
+                        
+                        <div className="flex justify-between text-xs text-gray-500">
+                          <span>0%</span>
+                          <span>100%</span>
+                          <span>200%</span>
+                        </div>
+                      </div>
+                      
+                      <div className="mt-2 text-center">
+                        <div className="text-xs text-gray-600">
+                          {multiplier < 1.0 ? `${((1 - multiplier) * 100).toFixed(0)}% smaller portion` :
+                          multiplier > 1.0 ? `${((multiplier - 1) * 100).toFixed(0)}% larger portion` :
+                          'Standard portion size'}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Show scaled ingredients - Only when expanded */}
+                    {isExpanded && (
+                      <div className="mt-3 pt-3 border-t border-gray-200">
+                      <div className="text-xs font-medium text-gray-700 mb-2">Scaled Ingredients:</div>
+                      <div className="space-y-1">
                         {component.ingredients.map((ingredient, ingredientIndex) => {
                           const isLast = ingredientIndex === component.ingredients.length - 1;
+                          const scaledQuantity = ingredient.quantity * multiplier;
+                          const scaledCost = ingredient.totalCost * multiplier;
                           
                           return (
                             <div key={ingredient.id} className="relative">
                               {/* Tree structure lines */}
-                              <div className="absolute left-4 top-0 w-px bg-gray-300" style={{
-                                height: isLast ? '12px' : '100%'
+                              <div className="absolute left-2 top-0 w-px bg-gray-300" style={{
+                                height: isLast ? '8px' : '100%'
                               }}></div>
-                              <div className="absolute left-4 top-3 w-4 h-px bg-gray-300"></div>
+                              <div className="absolute left-2 top-2 w-3 h-px bg-gray-300"></div>
                               
-                              <div className="flex items-center justify-between py-1.5 pl-10 pr-2">
+                              <div className="flex items-center justify-between py-1 pl-6 pr-2">
                                 <div className="flex-1">
                                   <div className="flex items-center justify-between">
                                     <div>
-                                      <span className="text-sm font-medium text-gray-900">{ingredient.name}</span>
-                                      <div className="text-xs text-gray-500 mt-0.5">
-                                        {ingredient.quantity} {ingredient.unit}
-                                        {ingredient.lastOrdered && (
-                                          <span className="ml-2">• Last ordered {formatDate(ingredient.lastOrdered)}</span>
+                                      <span className="text-xs font-medium text-gray-900">{ingredient.name}</span>
+                                      <div className="text-xs text-gray-500">
+                                        {scaledQuantity.toFixed(1)} {ingredient.unit}
+                                        {multiplier !== 1.0 && (
+                                          <span className="ml-1 text-blue-600">
+                                            (was {ingredient.quantity} {ingredient.unit})
+                                          </span>
                                         )}
                                       </div>
                                     </div>
-                                    <div className="text-right ml-3">
-                                      <div className="text-sm font-semibold text-gray-900">
-                                        ${ingredient.totalCost.toFixed(3)}
+                                    <div className="text-right ml-2">
+                                      <div className="text-xs font-semibold text-gray-900">
+                                        ${scaledCost.toFixed(3)}
                                       </div>
                                       <div className="text-xs text-gray-500">
                                         {ingredient.hasPrice ? (
@@ -1055,9 +1645,9 @@ function MenuItemDetailContent({
                                 </div>
                                 <div className="ml-2">
                                   {ingredient.hasPrice ? (
-                                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
                                   ) : (
-                                    <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                                    <div className="w-1.5 h-1.5 bg-red-500 rounded-full"></div>
                                   )}
                                 </div>
                               </div>
@@ -1065,207 +1655,110 @@ function MenuItemDetailContent({
                           );
                         })}
                       </div>
-                      
-                      {/* Component Total */}
-                      <div className="bg-gray-50 px-3 py-2 border-t border-gray-200">
-                        <div className="flex justify-between items-center">
-                          <span className="text-xs font-medium text-gray-700">Component Total</span>
-                          <span className="text-sm font-bold text-gray-900">${component.calculatedCost.toFixed(2)}</span>
-                        </div>
-                      </div>
                     </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               );
             })}
           </div>
-
-          {/* Summary Footer */}
-          <div className="bg-gray-50 border-t border-gray-200 px-4 py-3">
-            <div className="grid grid-cols-1 gap-3">
-              <div className="text-center">
-                <div className="text-xs text-gray-500 mb-1">Total Food Cost</div>
-                <div className="text-lg font-bold text-gray-900">${totalCost.toFixed(2)}</div>
-              </div>
-              {menuItem.price && (
-                <>
-                  <div className="text-center">
-                    <div className="text-xs text-gray-500 mb-1">Profit per Item</div>
-                    <div className="text-lg font-bold text-green-600">
-                      {formatCurrency(parseFloat(menuItem.price) - totalCost)}
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-xs text-gray-500 mb-1">Food Cost %</div>
-                    <div className={`text-lg font-bold ${
-                      ((totalCost / parseFloat(menuItem.price)) * 100) < 25 ? 'text-green-600' :
-                      ((totalCost / parseFloat(menuItem.price)) * 100) < 35 ? 'text-yellow-600' : 'text-red-600'
-                    }`}>
-                      {((totalCost / parseFloat(menuItem.price)) * 100).toFixed(1)}%
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Pricing Recommendations */}
-          <div className="bg-white border-t border-gray-200 px-4 py-3">
-            <h4 className="text-xs font-semibold text-gray-900 mb-2 flex items-center gap-1">
-              <IconTrendingUp size={12} />
-              Pricing Recommendations
-            </h4>
-            <div className="grid grid-cols-3 gap-2">
-              <div className="text-center p-2 bg-gray-50 rounded">
-                <div className="text-xs text-gray-500 mb-1">Break-even (30%)</div>
-                <div className="text-sm font-semibold text-gray-900">
-                  ${(totalCost / 0.30).toFixed(2)}
-                </div>
-              </div>
-              <div className="text-center p-2 bg-green-50 rounded">
-                <div className="text-xs text-gray-500 mb-1">Recommended (25%)</div>
-                <div className="text-sm font-semibold text-green-700">
-                  ${(totalCost / 0.25).toFixed(2)}
-                </div>
-              </div>
-              <div className="text-center p-2 bg-blue-50 rounded">
-                <div className="text-xs text-gray-500 mb-1">Premium (20%)</div>
-                <div className="text-sm font-semibold text-blue-700">
-                  ${(totalCost / 0.20).toFixed(2)}
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
-      ) : ingredients.length > 0 ? (
-        // Original ingredient-based breakdown
-        <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
-          <div className="bg-gray-50 border-b border-gray-200 px-4 py-3">
-            <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-              <IconChefHat size={16} />
-              Ingredient Breakdown
-            </h3>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="text-left py-2 px-3 text-xs font-semibold text-gray-900">Ingredient</th>
-                  <th className="text-left py-2 px-3 text-xs font-semibold text-gray-900">Qty</th>
-                  <th className="text-left py-2 px-3 text-xs font-semibold text-gray-900">Cost</th>
-                  <th className="text-left py-2 px-3 text-xs font-semibold text-gray-900">Total</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {ingredients.map((item, index) => {
-                  const ingredient = item.ingredients;
-                  const cost = calculateIngredientCost(ingredient, item.quantity);
-                  const hasPrice = ingredient?.last_price && parseFloat(ingredient.last_price) > 0;
-                  
-                  return (
-                    <tr key={index} className="hover:bg-gray-50">
-                      <td className="py-2 px-3">
-                        <span className="text-sm font-medium text-gray-900">
-                          {ingredient?.name || "Unknown ingredient"}
-                        </span>
-                      </td>
-                      <td className="py-2 px-3 text-gray-900 text-xs">
-                        {item.quantity} {ingredient?.unit || "units"}
-                      </td>
-                      <td className="py-2 px-3">
-                        {hasPrice ? (
-                          <span className="text-xs font-medium text-green-600">
-                            {formatCurrency(ingredient.last_price)}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-red-500 italic">No price</span>
+        ) : ingredients.length > 0 ? (
+          <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+            <div className="bg-gray-50 border-b border-gray-200 px-4 py-3">
+              <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                <IconChefHat size={16} />
+                Adjust Recipe Portion
+              </h3>
+              <p className="text-xs text-gray-500 mt-1">Scale the entire recipe up or down</p>
+            </div>
+            <div className="p-4">
+              {(() => {
+                const multiplier = getOptimizedComponentMultiplier('ingredients');
+                const originalCost = ingredients.reduce((total, item) => {
+                  return total + calculateIngredientCost(item.ingredients, item.quantity);
+                }, 0);
+                const newCost = originalCost * multiplier;
+                const costChange = newCost - originalCost;
+                
+                return (
+                  <div className="border border-gray-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <h4 className="font-semibold text-gray-900">Recipe Portion</h4>
+                        <p className="text-xs text-gray-500">{ingredients.length} ingredients</p>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-bold text-gray-900">{formatCurrency(newCost)}</div>
+                        {costChange !== 0 && (
+                          <div className={`text-xs ${costChange > 0 ? 'text-red-500' : 'text-green-500'}`}>
+                            {costChange > 0 ? '+' : ''}{formatCurrency(costChange)}
+                          </div>
                         )}
-                      </td>
-                      <td className="py-2 px-3">
-                        <span className="text-xs font-medium text-gray-900">
-                          {formatCurrency(cost)}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-              <tfoot className="bg-gray-50">
-                <tr>
-                  <td colSpan="3" className="py-2 px-3 text-xs font-semibold text-gray-900">Total:</td>
-                  <td className="py-2 px-3 text-xs font-bold text-gray-900">
-                    {formatCurrency(totalCost)}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        </div>
-      ) : (
-        <div className="bg-white border border-gray-200 rounded-lg p-8 text-center">
-          <div className="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full mx-auto mb-4">
-            <IconChefHat size={24} className="text-gray-400" />
-          </div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">No Ingredients Found</h3>
-          <p className="text-sm text-gray-600">This menu item doesn't have any ingredients or components configured yet.</p>
-        </div>
-      )}
-
-      {/* Cost History */}
-      {costHistory.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
-          <div className="bg-gray-50 border-b border-gray-200 px-4 py-3">
-            <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-              <IconChartLine size={16} />
-              Cost Change History
-            </h3>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="text-left py-2 px-3 text-xs font-semibold text-gray-900">Date</th>
-                  <th className="text-left py-2 px-3 text-xs font-semibold text-gray-900">Previous</th>
-                  <th className="text-left py-2 px-3 text-xs font-semibold text-gray-900">New</th>
-                  <th className="text-left py-2 px-3 text-xs font-semibold text-gray-900">Change</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {costHistory.map((record) => {
-                  const change = parseFloat(record.new_cost || 0) - parseFloat(record.old_cost || 0);
-                  const isIncrease = change > 0;
-                  
-                  return (
-                    <tr key={record.id} className="hover:bg-gray-50">
-                      <td className="py-2 px-3 text-xs text-gray-900">
-                        {formatDateTime(record.created_at)}
-                      </td>
-                      <td className="py-2 px-3 text-xs text-gray-900">
-                        {formatCurrency(record.old_cost)}
-                      </td>
-                      <td className="py-2 px-3 text-xs text-gray-900">
-                        {formatCurrency(record.new_cost)}
-                      </td>
-                      <td className="py-2 px-3">
-                        <div className="flex items-center gap-1">
-                          {isIncrease ? (
-                            <IconTrendingUp size={12} className="text-red-500" />
-                          ) : (
-                            <IconTrendingDown size={12} className="text-green-500" />
-                          )}
-                          <span className={`text-xs font-medium ${isIncrease ? 'text-red-500' : 'text-green-500'}`}>
-                            {isIncrease ? '+' : ''}{formatCurrency(change)}
-                          </span>
+                      </div>
+                    </div>
+                    
+                    <div className="p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-sm font-medium text-gray-700">Portion Size:</span>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min="0"
+                            max="200"
+                            value={Math.round(multiplier * 100)}
+                            onChange={(e) => {
+                              const percentage = parseInt(e.target.value) || 0;
+                              updateComponentMultiplier(component.id, percentage / 100);
+                            }}
+                            onKeyPress={(e) => {
+                              if (e.key === 'Enter') {
+                                e.target.blur();
+                              }
+                            }}
+                            className="w-16 px-2 py-1 text-center border border-gray-300 rounded text-sm font-medium"
+                          />
+                          <span className="text-sm text-gray-600">%</span>
                         </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <input
+                          type="range"
+                          min="0"
+                          max="200"
+                          step="1"
+                          value={Math.round(multiplier * 100)}
+                          onChange={(e) => updateComponentMultiplier(component.id, parseInt(e.target.value) / 100)}
+                          className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                          style={{
+                            background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${(multiplier * 100 / 200) * 100}%, #e5e7eb ${(multiplier * 100 / 200) * 100}%, #e5e7eb 100%)`
+                          }}
+                        />
+                        
+                        <div className="flex justify-between text-xs text-gray-500">
+                          <span>0%</span>
+                          <span>100%</span>
+                          <span>200%</span>
+                        </div>
+                      </div>
+                      
+                      <div className="mt-2 text-center">
+                        <div className="text-xs text-gray-600">
+                          {multiplier < 1.0 ? `${((1 - multiplier) * 100).toFixed(0)}% smaller portion` :
+                          multiplier > 1.0 ? `${((multiplier - 1) * 100).toFixed(0)}% larger portion` :
+                          'Standard portion size'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
           </div>
-        </div>
-      )}
-    </div>
-  );
+        ) : null}
+        </>
+   )}
+ </div>
+ );
 }

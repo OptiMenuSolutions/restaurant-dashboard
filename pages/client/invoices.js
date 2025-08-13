@@ -37,6 +37,16 @@ export default function ClientInvoices() {
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [invoiceItems, setInvoiceItems] = useState([]);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [userName, setUserName] = useState("");
+
+  const getUserInitials = (name) => {
+    if (!name) return "U";
+    return name.split(' ')
+      .map(part => part.charAt(0))
+      .join('')
+      .substring(0, 2)
+      .toUpperCase();
+  }
 
   useEffect(() => {
     const checkUser = async () => {
@@ -68,7 +78,7 @@ export default function ClientInvoices() {
 
       const { data, error } = await supabase
         .from("profiles")
-        .select("restaurant_id")
+        .select("restaurant_id, full_name")
         .eq("id", user.id)
         .single();
 
@@ -78,6 +88,8 @@ export default function ClientInvoices() {
       }
 
       setRestaurantId(data.restaurant_id);
+      const firstName = data.full_name ? data.full_name.split(' ')[0] : "User";
+      setUserName(firstName);
     } catch (err) {
       console.error('Unexpected error:', err);
     }
@@ -169,6 +181,10 @@ export default function ClientInvoices() {
 
   function removeFile(index) {
     setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  }
+
+  function clearSearch() {
+    setSearchTerm("");
   }
 
   async function handleUpload() {
@@ -357,27 +373,50 @@ export default function ClientInvoices() {
       pageDescription="Upload and manage your restaurant invoices"
       pageIcon={IconFileText}
     >
-      {/* Centered Search Bar and Upload Button */}
-      <div className="flex justify-center items-center gap-4 mb-6">
-        <div className="relative w-96">
-          <input
-            type="text"
-            placeholder="Search invoices by number or supplier..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-sm"
-          />
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <IconSearch size={16} className="text-gray-400" />
+      {/* Header Section - All in one line */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Invoice Center</h1>
+          <p className="text-gray-600 text-sm mt-1">Track expenses and supplier payments</p>
+        </div>
+        
+        <div className="flex items-center gap-4">
+          {/* Search Bar */}
+          <div className="relative w-96">
+            <input
+              type="text"
+              placeholder="Search invoices by number or supplier..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-sm"
+            />
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <IconSearch size={16} className="text-gray-400" />
+            </div>
+            {searchTerm && (
+              <button 
+                onClick={clearSearch} 
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <IconX size={16} />
+              </button>
+            )}
+          </div>
+          
+          {/* Upload Button */}
+          <button
+            onClick={() => setShowUploadModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+          >
+            <IconUpload size={16} />
+            Upload
+          </button>
+          
+          {/* User Profile Circle */}
+          <div className="flex items-center justify-center w-10 h-10 bg-blue-600 text-white rounded-full font-semibold text-sm cursor-pointer hover:bg-blue-700 transition-colors">
+            {getUserInitials(userName)}
           </div>
         </div>
-        <button
-          onClick={() => setShowUploadModal(true)}
-          className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-        >
-          <IconUpload size={20} />
-          Upload
-        </button>
       </div>
 
       {/* Confirmation Message */}

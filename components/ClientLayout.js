@@ -17,6 +17,17 @@ import {
   IconLogout,
 } from '@tabler/icons-react';
 
+const geometricBackgroundStyle = {
+  backgroundColor: '#f9fafb',
+  backgroundImage: `
+    radial-gradient(circle at 5px 5px, rgba(0, 0, 0, 0.04) 2px, transparent 2px),
+    radial-gradient(circle at 15px 15px, rgba(0, 0, 0, 0.025) 1px, transparent 1px)
+  `,
+  backgroundSize: '20px 20px, 10px 10px',
+  backgroundPosition: '0 0, 5px 5px',
+  minHeight: '100vh'
+};
+
 export default function ClientLayout({ children, pageTitle, pageDescription, pageIcon: PageIcon }) {
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -111,10 +122,14 @@ export default function ClientLayout({ children, pageTitle, pageDescription, pag
           className={`
             flex items-center justify-center w-12 h-12 rounded-full transition-all duration-300 relative z-10
             ${item.active 
-              ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/25' 
-              : 'text-gray-500 hover:text-gray-700 hover:bg-white hover:shadow-md'
+              ? 'text-white shadow-lg' 
+              : 'text-gray-100 hover:text-gray-700 hover:bg-white hover:shadow-md'
             }
           `}
+          style={item.active ? {
+            backgroundColor: '#02a4ba',
+            boxShadow: '0 10px 15px -3px rgba(2, 164, 186, 0.25), 0 4px 6px -2px rgba(2, 164, 186, 0.05)'
+          } : {}}
           onMouseEnter={() => setHoveredItem(`main-${index}`)}
           onMouseLeave={() => setHoveredItem(null)}
         >
@@ -152,10 +167,14 @@ export default function ClientLayout({ children, pageTitle, pageDescription, pag
         className={`
           flex items-center justify-center w-12 h-12 rounded-full transition-all duration-300 relative z-10
           ${item.active 
-            ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/25' 
+            ? 'text-white shadow-lg' 
             : 'text-gray-500 hover:text-gray-700 hover:bg-white hover:shadow-md'
           }
         `}
+        style={item.active ? {
+          backgroundColor: '#02a4ba',
+          boxShadow: '0 10px 15px -3px rgba(2, 164, 186, 0.25), 0 4px 6px -2px rgba(2, 164, 186, 0.05)'
+        } : {}}
       >
         <IconComponent size={20} />
       </button>
@@ -175,11 +194,11 @@ export default function ClientLayout({ children, pageTitle, pageDescription, pag
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div style={geometricBackgroundStyle}>
       <div className="flex">
         {/* Sidebar */}
         <aside className={`
-          fixed left-0 top-0 h-full w-20 bg-gray-50 z-40 flex flex-col items-center
+          fixed left-0 top-0 h-full w-20 bg-gray-700/95 backdrop-blur-sm z-40 flex flex-col items-center
           ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
           lg:translate-x-0
         `}>
