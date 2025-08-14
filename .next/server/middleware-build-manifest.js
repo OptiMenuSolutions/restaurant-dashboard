@@ -20,15 +20,15 @@ globalThis.__BUILD_MANIFEST = {
       "static/chunks/main.js",
       "static/chunks/pages/_error.js"
     ],
-    "/client/ingredients": [
-      "static/chunks/webpack.js",
-      "static/chunks/main.js",
-      "static/chunks/pages/client/ingredients.js"
-    ],
     "/client/menu-items": [
       "static/chunks/webpack.js",
       "static/chunks/main.js",
       "static/chunks/pages/client/menu-items.js"
+    ],
+    "/client/profile": [
+      "static/chunks/webpack.js",
+      "static/chunks/main.js",
+      "static/chunks/pages/client/profile.js"
     ]
   },
   "ampFirstPages": []
