@@ -2,7 +2,6 @@
   "/_app": "pages/_app.js",
   "/_error": "pages/_error.js",
   "/_document": "pages/_document.js",
-  "/client/invoices": "pages/client/invoices.js",
-  "/client/menu-items": "pages/client/menu-items.js",
-  "/client/profile": "pages/client/profile.js"
+  "/client/dashboard": "pages/client/dashboard.js",
+  "/": "pages/index.js"
 }
