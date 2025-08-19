@@ -360,76 +360,76 @@ export default function ClientDashboard() {
     <GeometricBackground>
       <ClientLayout>
         {/* Header with Welcome Message, Search Bar, and Profile */}
-        <div className="flex flex-col xl:flex-row xl:items-center justify-between mb-6 gap-4">
-          <h1 className="text-2xl font-bold text-gray-900">Welcome Back, {userName}!</h1>
-          <div className="flex items-center gap-4">
-            <div className="relative w-full xl:w-96">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between mb-4 gap-3">
+          <h1 className="text-xl font-bold text-gray-900">Welcome Back, {userName}!</h1>
+          <div className="flex items-center gap-3">
+            <div className="relative w-full xl:w-80">
               <input
                 type="text"
                 placeholder="Search invoices, ingredients, menu items..."
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-sm"
+                className="w-full pl-8 pr-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-sm"
               />
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+                <svg className="h-3.5 w-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
               </div>
             </div>
-            <div className="flex items-center justify-center w-10 h-10 bg-blue-600 text-white rounded-full font-semibold text-sm cursor-pointer hover:bg-blue-700 transition-colors flex-shrink-0">
+            <div className="flex items-center justify-center w-8 h-8 bg-blue-600 text-white rounded-full font-semibold text-xs cursor-pointer hover:bg-blue-700 transition-colors flex-shrink-0">
               {getUserInitials(userName)}
             </div>
           </div>
         </div>
 
         {/* Dashboard Responsive Layout */}
-        <div className="flex flex-col xl:flex-row gap-4 h-auto xl:h-[calc(100vh-160px)]">
+        <div className="flex flex-col xl:flex-row gap-3 h-auto xl:h-[75vh]">
           
           {/* Left Column - AI Profit Score */}
-          <div className="w-full xl:w-[16%] flex xl:flex-col gap-4">
-            <div className="w-full bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex flex-col min-h-[300px] xl:min-h-0 xl:h-full">
+          <div className="w-full xl:w-[15%] flex xl:flex-col gap-3">
+            <div className="w-full bg-white rounded-lg border border-gray-200 shadow-sm p-3 flex flex-col min-h-[220px] xl:min-h-0 xl:h-full">
               <div className="text-center flex-shrink-0">
-                <div className="flex items-center justify-center gap-2 mb-2">
-                  <IconBrain size={16} className="text-blue-600" />
-                  <h3 className="text-sm font-semibold text-gray-900">AI Profit Score</h3>
+                <div className="flex items-center justify-center gap-1.5 mb-1.5">
+                  <IconBrain size={14} className="text-blue-600" />
+                  <h3 className="text-xs font-semibold text-gray-900">AI Profit Score</h3>
                 </div>
-                <p className="text-xs text-gray-500 mb-3">Daily optimization rating</p>
+                <p className="text-[10px] text-gray-500 mb-2">Daily optimization rating</p>
               </div>
               <div className="flex-1 flex items-center justify-center min-h-0">
-                <div className="relative w-32 h-32 lg:w-40 lg:h-40">
+                <div className="relative w-24 h-24 lg:w-28 lg:h-28">
                   <svg className="w-full h-full transform -rotate-90" viewBox="0 0 200 200">
                     <circle
                       cx="100"
                       cy="100"
-                      r="90"
+                      r="85"
                       stroke="#e5e7eb"
-                      strokeWidth="12"
+                      strokeWidth="10"
                       fill="transparent"
                     />
                     <circle
                       cx="100"
                       cy="100"
-                      r="90"
+                      r="85"
                       stroke="#10b981"
-                      strokeWidth="12"
+                      strokeWidth="10"
                       fill="transparent"
-                      strokeDasharray={`${(87 / 100) * (2 * Math.PI * 90)} ${2 * Math.PI * 90}`}
+                      strokeDasharray={`${(87 / 100) * (2 * Math.PI * 85)} ${2 * Math.PI * 85}`}
                       strokeLinecap="round"
                       className="transition-all duration-1000 ease-out"
                     />
                   </svg>
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="text-center">
-                      <div className="text-3xl lg:text-4xl font-bold text-gray-900">87</div>
-                      <div className="text-sm text-gray-500">Score</div>
+                      <div className="text-2xl lg:text-3xl font-bold text-gray-900">87</div>
+                      <div className="text-xs text-gray-500">Score</div>
                     </div>
                   </div>
                 </div>
               </div>
               <div className="text-center flex-shrink-0">
-                <div className="text-xs text-gray-600 mb-2 px-1">
+                <div className="text-[10px] text-gray-600 mb-1.5 px-1">
                   Based on margin analysis and pricing optimization
                 </div>
-                <div className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                <div className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-800">
                   Excellent
                 </div>
               </div>
@@ -437,68 +437,58 @@ export default function ClientDashboard() {
           </div>
 
           {/* Main Content Area */}
-          <div className="flex-1 flex flex-col gap-4">
+          <div className="flex-1 flex flex-col gap-3">
             
             {/* Top Row - AI Recommendations */}
-            <div className="w-full h-auto xl:h-[33%]">
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 h-full flex flex-col">
-                <div className="flex items-center gap-3 mb-3 flex-shrink-0">
-                  <div className="flex items-center justify-center w-8 h-8 bg-gradient-to-br from-purple-100 to-pink-100 rounded-lg">
-                    <IconSparkles size={16} className="text-purple-600" />
+            <div className="w-full h-auto xl:h-[15vh]">
+              <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-3 h-full flex flex-col">
+                <div className="flex items-center gap-2 mb-2 flex-shrink-0">
+                  <div className="flex items-center justify-center w- h-3 bg-gradient-to-br from-purple-100 to-pink-100 rounded-lg">
+                    <IconSparkles size={14} className="text-purple-600" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-semibold text-gray-900">AI Daily Dish Recommendations</h3>
-                    <p className="text-xs text-gray-500">Optimized for profit and inventory turnover</p>
+                    <h3 className="text-xs font-semibold text-gray-900">AI Daily Dish Recommendations</h3>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 flex-1 min-h-0">
-                  <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-3 border border-green-100 flex flex-col justify-between min-h-[100px]">
-                    <div>
-                      <div className="flex items-center gap-1 mb-1">
-                        <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center text-white text-xs font-bold">1</div>
-                        <span className="text-xs font-medium text-green-800">Top Pick</span>
-                      </div>
-                      <h4 className="font-semibold text-gray-900 mb-1 text-sm">Caesar Salad</h4>
-                      <p className="text-xs text-gray-600 mb-1">Fresh ingredients, 68% margin</p>
+                
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 flex-1 min-h-0">
+                  <div className="bg-green-50 rounded-md p-2 border-l-3 border-green-500 flex flex-col justify-center min-h-0 h-full">
+                    <div className="flex items-center gap-1 mb-0.5">
+                      <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                      <span className="font-semibold text-gray-900 text-xs">Promote Caesar Salad</span>
                     </div>
-                    <div className="text-xs font-medium text-green-700">Push today</div>
+                    <p className="text-[10px] text-gray-600">High margin, trending up 15%</p>
                   </div>
-                  <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-3 border border-blue-100 flex flex-col justify-between min-h-[100px]">
-                    <div>
-                      <div className="flex items-center gap-1 mb-1">
-                        <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-bold">2</div>
-                        <span className="text-xs font-medium text-blue-800">High Profit</span>
-                      </div>
-                      <h4 className="font-semibold text-gray-900 mb-1 text-sm">Grilled Salmon</h4>
-                      <p className="text-xs text-gray-600 mb-1">Premium pricing, fast turnover</p>
+                  
+                  <div className="bg-yellow-50 rounded-md p-2 border-l-3 border-orange-500 flex flex-col justify-center min-h-0 h-full">
+                    <div className="flex items-center gap-1 mb-0.5">
+                      <div className="w-1.5 h-1.5 bg-orange-500 rounded-full"></div>
+                      <span className="font-semibold text-gray-900 text-xs">Fish Tacos Alert</span>
                     </div>
-                    <div className="text-xs font-medium text-blue-700">Recommend</div>
+                    <p className="text-[10px] text-gray-600">Ingredients expiring in 2 days</p>
                   </div>
-                  <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-lg p-3 border border-orange-100 flex flex-col justify-between min-h-[100px]">
-                    <div>
-                      <div className="flex items-center gap-1 mb-1">
-                        <div className="w-4 h-4 bg-orange-500 rounded-full flex items-center justify-center text-white text-xs font-bold">3</div>
-                        <span className="text-xs font-medium text-orange-800">Clear Stock</span>
-                      </div>
-                      <h4 className="font-semibold text-gray-900 mb-1 text-sm">Pasta Carbonara</h4>
-                      <p className="text-xs text-gray-600 mb-1">Ingredients aging, good margin</p>
+                  
+                  <div className="bg-gray-50 rounded-md p-2 border-l-3 border-gray-500 flex flex-col justify-center min-h-0 h-full">
+                    <div className="flex items-center gap-1 mb-0.5">
+                      <div className="w-1.5 h-1.5 bg-gray-500 rounded-full"></div>
+                      <span className="font-semibold text-gray-900 text-xs">Optimize Burger Portions</span>
                     </div>
-                    <div className="text-xs font-medium text-orange-700">Move today</div>
+                    <p className="text-[10px] text-gray-600">Cost savings opportunity available</p>
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Middle Row - Charts */}
-            <div className="flex flex-col lg:flex-row gap-4 h-auto xl:h-[67%]">
+            <div className="flex flex-col lg:flex-row gap-3 h-auto xl:h-[55vh]">
               
               {/* Monthly Spending Chart */}
-              <div className="w-full lg:w-1/2 h-[300px] xl:h-full">
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 cursor-pointer hover:shadow-md transition-shadow h-full flex flex-col"
+              <div className="w-full lg:w-1/2 h-[30vh] xl:h-full">
+                <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-3 cursor-pointer hover:shadow-md transition-shadow h-full flex flex-col"
                     onClick={() => router.push('/client/invoices')}>
-                  <div className="flex items-center justify-between mb-3 flex-shrink-0">
-                    <h3 className="text-sm font-semibold text-gray-900">Monthly Spending</h3>
-                    <IconArrowRight size={16} className="text-gray-400" />
+                  <div className="flex items-center justify-between mb-2 flex-shrink-0">
+                    <h3 className="text-xs font-semibold text-gray-900">Monthly Spending</h3>
+                    <IconArrowRight size={14} className="text-gray-400" />
                   </div>
                   <div className="flex-1 min-h-0 w-full">
                     {dashboardData.monthlySpending.length > 0 ? (
@@ -508,13 +498,13 @@ export default function ClientDashboard() {
                           <XAxis 
                             dataKey="month" 
                             stroke="#6b7280" 
-                            fontSize={10}
+                            fontSize={9}
                             tickLine={false}
                             axisLine={false}
                           />
                           <YAxis 
                             stroke="#6b7280" 
-                            fontSize={10}
+                            fontSize={9}
                             tickFormatter={(value) => `${(value/1000).toFixed(0)}k`}
                             tickLine={false}
                             axisLine={false}
@@ -524,9 +514,9 @@ export default function ClientDashboard() {
                             contentStyle={{
                               backgroundColor: 'white',
                               border: '1px solid #e5e7eb',
-                              borderRadius: '8px',
+                              borderRadius: '6px',
                               boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                              fontSize: '11px'
+                              fontSize: '10px'
                             }}
                           />
                           <Bar 
@@ -538,8 +528,8 @@ export default function ClientDashboard() {
                       </ResponsiveContainer>
                     ) : (
                       <div className="h-full flex flex-col items-center justify-center text-gray-500">
-                        <IconChartBar size={24} className="mb-2" />
-                        <p className="text-xs">No spending data</p>
+                        <IconChartBar size={20} className="mb-1" />
+                        <p className="text-[10px]">No spending data</p>
                       </div>
                     )}
                   </div>
@@ -547,14 +537,14 @@ export default function ClientDashboard() {
               </div>
 
               {/* Menu Analysis */}
-              <div className="w-full lg:w-1/2 h-[300px] xl:h-full">
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 h-full flex flex-col">
-                  <div className="flex items-center justify-between mb-3 flex-shrink-0">
-                    <h3 className="text-sm font-semibold text-gray-900">Menu Analysis</h3>
+              <div className="w-full lg:w-1/2 h-[30vh] xl:h-full">
+                <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-3 h-full flex flex-col">
+                  <div className="flex items-center justify-between mb-2 flex-shrink-0">
+                    <h3 className="text-xs font-semibold text-gray-900">Menu Analysis</h3>
                     <div className="flex bg-gray-100 rounded-md p-0.5">
                       <button
                         onClick={() => setMarginView("Highest-Margin")}
-                        className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors ${
                           marginView === "Highest-Margin" 
                             ? 'bg-white text-gray-900 shadow-sm' 
                             : 'text-gray-600 hover:text-gray-900'
@@ -564,7 +554,7 @@ export default function ClientDashboard() {
                       </button>
                       <button
                         onClick={() => setMarginView("Lowest-Margin")}
-                        className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors ${
                           marginView === "Lowest-Margin" 
                             ? 'bg-white text-gray-900 shadow-sm' 
                             : 'text-gray-600 hover:text-gray-900'
@@ -574,16 +564,16 @@ export default function ClientDashboard() {
                       </button>
                     </div>
                   </div>
-                  <div className="flex flex-col gap-2 flex-1 overflow-y-auto">
+                  <div className="flex flex-col gap-1.5 flex-1 overflow-y-auto">
                     {getMarginItems().slice(0, 3).map((item, index) => (
-                      <div key={item.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg" style={{ height: 'calc(33.333% - 0.33rem)' }}>
+                      <div key={item.id} className="flex items-center justify-between p-2.5 bg-gray-50 rounded-md" style={{ height: 'calc(33.333% - 0.25rem)' }}>
                         <div className="flex-1 min-w-0">
-                          <h4 className="font-medium text-gray-900 text-sm truncate">{item.name}</h4>
-                          <p className="text-xs text-gray-500">{formatCurrencyDetailed(item.price)}</p>
+                          <h4 className="font-medium text-gray-900 text-xs truncate">{item.name}</h4>
+                          <p className="text-[10px] text-gray-500">{formatCurrencyDetailed(item.price)}</p>
                         </div>
                         <div className="text-right ml-2 flex-shrink-0">
                           <div 
-                            className="font-semibold text-sm"
+                            className="font-semibold text-xs"
                             style={{ color: getMarginColor(item.margin) }}
                           >
                             {item.margin.toFixed(1)}%
@@ -599,20 +589,20 @@ export default function ClientDashboard() {
         </div>
 
         {/* Bottom Row - Data Cards */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mt-3">
           
           {/* Top Ingredient Costs */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 min-h-[250px] flex flex-col">
-            <h3 className="text-sm font-semibold text-gray-900 mb-3 flex-shrink-0">Top Ingredient Costs</h3>
-            <div className="space-y-2 flex-1 overflow-y-auto">
+          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-3 min-h-[20vh] flex flex-col">
+            <h3 className="text-xs font-semibold text-gray-900 mb-2 flex-shrink-0">Top Ingredient Costs</h3>
+            <div className="space-y-1.5 flex-1 overflow-y-auto">
               {dashboardData.ingredientTrends.map((ingredient, index) => (
-                <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg flex-shrink-0">
+                <div key={index} className="flex items-center justify-between p-1.5 bg-gray-50 rounded-md flex-shrink-0">
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 text-sm truncate">{ingredient.fullName}</p>
-                    <p className="text-xs text-gray-500">per {ingredient.unit}</p>
+                    <p className="font-medium text-gray-900 text-xs truncate">{ingredient.fullName}</p>
+                    <p className="text-[10px] text-gray-500">per {ingredient.unit}</p>
                   </div>
                   <div className="text-right ml-2 flex-shrink-0">
-                    <p className="font-semibold text-gray-900 text-sm">{formatCurrencyDetailed(ingredient.price)}</p>
+                    <p className="font-semibold text-gray-900 text-xs">{formatCurrencyDetailed(ingredient.price)}</p>
                   </div>
                 </div>
               ))}
@@ -620,26 +610,26 @@ export default function ClientDashboard() {
           </div>
 
           {/* Recent Invoices */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 min-h-[250px] flex flex-col">
-            <div className="flex items-center justify-between mb-3 flex-shrink-0">
-              <h3 className="text-sm font-semibold text-gray-900">Recent Invoices</h3>
+          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-3 min-h-[20vh] flex flex-col">
+            <div className="flex items-center justify-between mb-2 flex-shrink-0">
+              <h3 className="text-xs font-semibold text-gray-900">Recent Invoices</h3>
               <button 
                 onClick={() => router.push('/client/invoices')}
-                className="text-blue-600 hover:text-blue-700 text-xs font-medium flex-shrink-0"
+                className="text-blue-600 hover:text-blue-700 text-[10px] font-medium flex-shrink-0"
               >
                 View All
               </button>
             </div>
-            <div className="space-y-2 flex-1 overflow-y-auto">
+            <div className="space-y-1.5 flex-1 overflow-y-auto">
               {dashboardData.recentInvoices.slice(0, 6).map(invoice => (
-                <div key={invoice.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg flex-shrink-0">
+                <div key={invoice.id} className="flex items-center justify-between p-1.5 bg-gray-50 rounded-md flex-shrink-0">
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 text-sm truncate">{invoice.number}</p>
-                    <p className="text-xs text-gray-500 truncate">{invoice.supplier}</p>
+                    <p className="font-medium text-gray-900 text-xs truncate">{invoice.number}</p>
+                    <p className="text-[10px] text-gray-500 truncate">{invoice.supplier}</p>
                   </div>
                   <div className="text-right ml-2 flex-shrink-0">
-                    <p className="font-semibold text-gray-900 text-sm">{formatCurrency(invoice.amount)}</p>
-                    <p className="text-xs text-gray-500">{formatDate(invoice.date)}</p>
+                    <p className="font-semibold text-gray-900 text-xs">{formatCurrency(invoice.amount)}</p>
+                    <p className="text-[10px] text-gray-500">{formatDate(invoice.date)}</p>
                   </div>
                 </div>
               ))}
@@ -647,61 +637,61 @@ export default function ClientDashboard() {
           </div>
 
           {/* Key Metrics */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 min-h-[250px] flex flex-col">
-            <h3 className="text-sm font-semibold text-gray-900 mb-3 flex-shrink-0">Key Metrics</h3>
-            <div className="grid grid-cols-2 gap-3 flex-1 min-h-0">
+          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-3 min-h-[20vh] flex flex-col">
+            <h3 className="text-xs font-semibold text-gray-900 mb-2 flex-shrink-0">Key Metrics</h3>
+            <div className="grid grid-cols-2 gap-2 flex-1 min-h-0">
               <div 
-                className="bg-blue-50 rounded-lg p-3 cursor-pointer hover:bg-blue-100 transition-colors flex flex-col justify-center min-h-[80px]"
+                className="bg-blue-50 rounded-md p-2 cursor-pointer hover:bg-blue-100 transition-colors flex flex-col justify-center min-h-[60px]"
                 onClick={() => router.push('/client/invoices')}
               >
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="flex items-center justify-center w-6 h-6 bg-blue-100 rounded flex-shrink-0">
-                    <IconFileText size={14} className="text-blue-600" />
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <div className="flex items-center justify-center w-4 h-4 bg-blue-100 rounded flex-shrink-0">
+                    <IconFileText size={10} className="text-blue-600" />
                   </div>
-                  <div className="text-lg font-bold text-gray-900 truncate">{dashboardData.totalInvoices}</div>
+                  <div className="text-sm font-bold text-gray-900 truncate">{dashboardData.totalInvoices}</div>
                 </div>
-                <div className="text-xs text-gray-600">Invoices</div>
+                <div className="text-[10px] text-gray-600">Invoices</div>
               </div>
               
               <div 
-                className="bg-green-50 rounded-lg p-3 cursor-pointer hover:bg-green-100 transition-colors flex flex-col justify-center min-h-[80px]"
+                className="bg-green-50 rounded-md p-2 cursor-pointer hover:bg-green-100 transition-colors flex flex-col justify-center min-h-[60px]"
                 onClick={() => router.push('/client/ingredients')}
               >
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="flex items-center justify-center w-6 h-6 bg-green-100 rounded flex-shrink-0">
-                    <IconClipboardList size={14} className="text-green-600" />
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <div className="flex items-center justify-center w-4 h-4 bg-green-100 rounded flex-shrink-0">
+                    <IconClipboardList size={10} className="text-green-600" />
                   </div>
-                  <div className="text-lg font-bold text-gray-900 truncate">{dashboardData.totalIngredients}</div>
+                  <div className="text-sm font-bold text-gray-900 truncate">{dashboardData.totalIngredients}</div>
                 </div>
-                <div className="text-xs text-gray-600">Ingredients</div>
+                <div className="text-[10px] text-gray-600">Ingredients</div>
               </div>
               
               <div 
-                className="bg-purple-50 rounded-lg p-3 cursor-pointer hover:bg-purple-100 transition-colors flex flex-col justify-center min-h-[80px]"
+                className="bg-purple-50 rounded-md p-2 cursor-pointer hover:bg-purple-100 transition-colors flex flex-col justify-center min-h-[60px]"
                 onClick={() => router.push('/client/menu-items')}
               >
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="flex items-center justify-center w-6 h-6 bg-purple-100 rounded flex-shrink-0">
-                    <IconChefHat size={14} className="text-purple-600" />
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <div className="flex items-center justify-center w-4 h-4 bg-purple-100 rounded flex-shrink-0">
+                    <IconChefHat size={10} className="text-purple-600" />
                   </div>
-                  <div className="text-lg font-bold text-gray-900 truncate">{dashboardData.totalMenuItems}</div>
+                  <div className="text-sm font-bold text-gray-900 truncate">{dashboardData.totalMenuItems}</div>
                 </div>
-                <div className="text-xs text-gray-600">Menu Items</div>
+                <div className="text-[10px] text-gray-600">Menu Items</div>
               </div>
               
-              <div className="bg-yellow-50 rounded-lg p-3 flex flex-col justify-center min-h-[80px]">
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="flex items-center justify-center w-6 h-6 bg-yellow-100 rounded flex-shrink-0">
-                    <IconCurrencyDollar size={14} className="text-yellow-600" />
+              <div className="bg-yellow-50 rounded-md p-2 flex flex-col justify-center min-h-[60px]">
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <div className="flex items-center justify-center w-4 h-4 bg-yellow-100 rounded flex-shrink-0">
+                    <IconCurrencyDollar size={10} className="text-yellow-600" />
                   </div>
                   <div 
-                    className="text-lg font-bold truncate"
+                    className="text-sm font-bold truncate"
                     style={{ color: getMarginColor(dashboardData.averageMargin) }}
                   >
                     {dashboardData.averageMargin.toFixed(1)}%
                   </div>
                 </div>
-                <div className="text-xs text-gray-600">Avg Margin</div>
+                <div className="text-[10px] text-gray-600">Avg Margin</div>
               </div>
             </div>
           </div>

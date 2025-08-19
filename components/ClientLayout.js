@@ -120,20 +120,24 @@ export default function ClientLayout({ children, pageTitle, pageDescription, pag
         <Link 
           href={item.href}
           className={`
-            flex items-center justify-center w-12 h-12 rounded-full transition-all duration-300 relative z-10
+            flex items-center justify-center rounded-full transition-all duration-300 relative z-10
             ${item.active 
               ? 'text-white shadow-lg' 
               : 'text-gray-100 hover:text-gray-700 hover:bg-white hover:shadow-md'
             }
           `}
-          style={item.active ? {
-            backgroundColor: '#02a4ba',
-            boxShadow: '0 10px 15px -3px rgba(2, 164, 186, 0.25), 0 4px 6px -2px rgba(2, 164, 186, 0.05)'
-          } : {}}
+          style={{
+            width: 'clamp(24px, 5vh, 56px)',
+            height: 'clamp(24px, 5vh, 56px)',
+            ...(item.active ? {
+              backgroundColor: '#02a4ba',
+              boxShadow: '0 10px 15px -3px rgba(2, 164, 186, 0.25), 0 4px 6px -2px rgba(2, 164, 186, 0.05)'
+            } : {})
+          }}
           onMouseEnter={() => setHoveredItem(`main-${index}`)}
           onMouseLeave={() => setHoveredItem(null)}
         >
-          <IconComponent size={20} />
+          <IconComponent style={{ width: 'clamp(12px, 3vh, 24px)', height: 'clamp(12px, 3vh, 24px)' }} />
         </Link>
         
         {/* Hover Label */}
@@ -165,18 +169,22 @@ export default function ClientLayout({ children, pageTitle, pageDescription, pag
       <button
         onClick={handleClick}
         className={`
-          flex items-center justify-center w-12 h-12 rounded-full transition-all duration-300 relative z-10
+          flex items-center justify-center rounded-full transition-all duration-300 relative z-10
           ${item.active 
             ? 'text-white shadow-lg' 
             : 'text-gray-500 hover:text-gray-700 hover:bg-white hover:shadow-md'
           }
         `}
-        style={item.active ? {
-          backgroundColor: '#02a4ba',
-          boxShadow: '0 10px 15px -3px rgba(2, 164, 186, 0.25), 0 4px 6px -2px rgba(2, 164, 186, 0.05)'
-        } : {}}
+        style={{
+          width: 'clamp(24px, 5vh, 56px)',
+          height: 'clamp(24px, 5vh, 56px)',
+          ...(item.active ? {
+            backgroundColor: '#02a4ba',
+            boxShadow: '0 10px 15px -3px rgba(2, 164, 186, 0.25), 0 4px 6px -2px rgba(2, 164, 186, 0.05)'
+          } : {})
+        }}
       >
-        <IconComponent size={20} />
+        <IconComponent style={{ width: 'clamp(12px, 3vh, 24px)', height: 'clamp(12px, 3vh, 24px)' }} />
       </button>
     );
   };
@@ -197,23 +205,39 @@ export default function ClientLayout({ children, pageTitle, pageDescription, pag
     <div style={geometricBackgroundStyle}>
       <div className="flex">
         {/* Sidebar */}
-        <aside className={`
-          fixed left-0 top-0 h-full w-20 bg-gray-700/95 backdrop-blur-sm z-40 flex flex-col items-center
-          ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
-          lg:translate-x-0
-        `}>
+        <aside 
+          className={`
+            fixed left-0 top-0 h-full bg-gray-700/95 backdrop-blur-sm z-40 flex flex-col items-center
+            ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
+            lg:translate-x-0
+          `}
+          style={{ width: 'clamp(60px, 8vh, 100px)' }}
+        >
           {/* Logo */}
-          <div className="flex items-center justify-center w-16 h-20 mt-4">
+          <div 
+            className="flex items-center justify-center mt-4"
+            style={{ 
+              width: 'clamp(48px, 6vh, 80px)', 
+              height: 'clamp(48px, 6vh, 100px)' 
+            }}
+          >
             <img 
               src="/optimenu-logo-collapsed.png" 
               alt="OptiMenu" 
-              className="h-10 w-10 object-contain"
+              className="object-contain"
+              style={{ 
+                width: 'clamp(16px, 6vh, 48px)', 
+                height: 'clamp(16px, 6vh, 48px)' 
+              }}
             />
           </div>
 
           {/* Main Navigation - Centered */}
           <div className="flex-1 flex flex-col items-center justify-center">
-            <div className="flex flex-col items-center space-y-6 py-8">
+            <div 
+              className="flex flex-col items-center py-4"
+              style={{ gap: 'clamp(8px, 3.5vh, 32px)' }}
+            >
               {navigationData.main.map((item, index) => (
                 <NavItem key={index} item={item} index={index} />
               ))}
@@ -221,7 +245,10 @@ export default function ClientLayout({ children, pageTitle, pageDescription, pag
           </div>
 
           {/* Secondary Navigation - Bottom */}
-          <div className="flex flex-col items-center space-y-4 pb-6">
+          <div 
+            className="flex flex-col items-center pb-4"
+            style={{ gap: 'clamp(8px, 1.5vh, 24px)' }}
+          >
             {navigationData.secondary.map((item, index) => (
               <SecondaryNavItem key={index} item={item} index={index} />
             ))}
@@ -267,9 +294,17 @@ export default function ClientLayout({ children, pageTitle, pageDescription, pag
         )}
 
         {/* Main Content */}
-        <div className="flex-1 lg:pl-20">
+        <div 
+          className="flex-1" 
+          style={{ paddingLeft: 'clamp(60px, 8vh, 100px)' }}
+        >
           {/* Page Content */}
-          <main className="p-8 lg:px-12">
+          <main 
+            className="lg:px-12" 
+            style={{ 
+              padding: 'clamp(16px, 2vh, 32px) clamp(16px, 2vh, 48px)' 
+            }}
+          >
             {children}
           </main>
         </div>
