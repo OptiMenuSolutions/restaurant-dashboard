@@ -68,6 +68,7 @@ export default function ClientDashboard() {
     unpricedIngredients: 0,
     averageMargin: 0,
     totalSpending: 0,
+    aiProfitScore: { score: 0, breakdown: {} },
     processingStats: { processed: 0, pending: 0 }
   });
   const router = useRouter();
@@ -161,14 +162,97 @@ export default function ClientDashboard() {
 
       if (menuItemsError) throw menuItemsError;
 
-      // Process data
+      // Process data (keep this synchronous)
       const processedData = processDashboardData(invoices, ingredients, menuItems);
-      setDashboardData(processedData);
+      
+      // Fetch AI recommendations separately
+      const aiRecommendations = await fetchAIRecommendations(processedData);
+      
+      // Add recommendations to the processed data
+      const finalData = {
+        ...processedData,
+        aiRecommendations
+      };
+      
+      setDashboardData(finalData);
 
     } catch (err) {
       setError("Failed to fetch dashboard data: " + err.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  // Add this function in your dashboard component
+  async function fetchAIRecommendations(dashboardData) {
+    try {
+      console.log('=== Starting fetchAIRecommendations ===');
+      console.log('restaurantId:', restaurantId);
+      console.log('userName:', userName);
+      console.log('dashboardData keys:', dashboardData ? Object.keys(dashboardData) : 'undefined');
+      
+      const requestBody = {
+        dashboardData,
+        restaurantId,
+        restaurantName: userName
+      };
+      
+      console.log('Making request to /api/ai-recommendations');
+      
+      const response = await fetch('/api/ai-recommendations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      console.log('Response received:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('=== API ERROR ===');
+        console.error('Status:', response.status);
+        console.error('Response:', errorText);
+        throw new Error(`API returned ${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
+      console.log('=== SUCCESS ===');
+      console.log('Received data:', data);
+      return data.recommendations;
+      
+    } catch (error) {
+      console.error('=== FETCH ERROR ===');
+      console.error('Error type:', error.constructor.name);
+      console.error('Error message:', error.message);
+      console.error('Full error:', error);
+      
+      // Return fallback recommendations
+      return [
+        {
+          title: "Check High Margins",
+          description: "Review top performing items",
+          type: "promote",
+          color: "green"
+        },
+        {
+          title: "Monitor Costs", 
+          description: "Track ingredient pricing",
+          type: "alert",
+          color: "orange"
+        },
+        {
+          title: "Optimize Menu",
+          description: "Update low margin items", 
+          type: "optimize",
+          color: "red"
+        }
+      ];
     }
   }
 
@@ -213,12 +297,27 @@ export default function ClientDashboard() {
         unit: ing.unit
       }));
 
-    return {
-      totalInvoices, totalIngredients, totalMenuItems, lowMarginItems, recentInvoices,
-      ingredientTrends, menuItemAnalysis, monthlySpending, unpricedIngredients,
-      averageMargin, totalSpending, processingStats: { processed: processedInvoices.length, pending: pendingInvoices.length }
-    };
-  }
+      // Calculate AI Profit Score
+      const aiProfitScore = calculateAIProfitScore({
+        menuItemAnalysis,
+        itemsWithMargins,
+        averageMargin,
+        unpricedIngredients,
+        totalIngredients,
+        totalMenuItems,
+        processedInvoices,
+        totalInvoices
+      });
+
+      return {
+        totalInvoices, totalIngredients, totalMenuItems, lowMarginItems, recentInvoices,
+        ingredientTrends, menuItemAnalysis, monthlySpending, unpricedIngredients,
+        averageMargin, totalSpending, aiProfitScore,
+        processingStats: { processed: processedInvoices.length, pending: pendingInvoices.length }
+      };
+      
+      // Remove the duplicate return statement below
+    }
 
   // NEW (corrected):
   function calculateMenuItemCost(menuItem) {
@@ -299,6 +398,92 @@ export default function ClientDashboard() {
     if (margin >= 40) return "#3b82f6"; 
     if (margin >= 25) return "#f59e0b";
     return "#ef4444";
+  }
+
+  // AI Profit Score calculation function
+  function calculateAIProfitScore(data) {
+    const {
+      menuItemAnalysis,
+      itemsWithMargins,
+      averageMargin,
+      unpricedIngredients,
+      totalIngredients,
+      totalMenuItems,
+      processedInvoices,
+      totalInvoices
+    } = data;
+
+    let score = 0;
+
+    // 1. Average Margin Score (30 points max)
+    const marginScore = Math.min((averageMargin / 60) * 30, 30);
+    score += marginScore;
+
+    // 2. Data Completeness Score (25 points max)
+    const dataCompletenessFactors = [
+      totalIngredients > 0 ? ((totalIngredients - unpricedIngredients) / totalIngredients) * 10 : 0,
+      totalMenuItems > 0 ? (itemsWithMargins.length / totalMenuItems) * 10 : 0,
+      totalInvoices > 0 ? (processedInvoices.length / totalInvoices) * 5 : 0
+    ];
+    const dataScore = dataCompletenessFactors.reduce((sum, factor) => sum + factor, 0);
+    score += dataScore;
+
+    // 3. Margin Distribution Score (20 points max)
+    if (itemsWithMargins.length > 0) {
+      const highMarginItems = itemsWithMargins.filter(item => item.margin >= 50).length;
+      const lowMarginItems = itemsWithMargins.filter(item => item.margin < 25).length;
+      
+      const distributionScore = Math.min(
+        ((highMarginItems / itemsWithMargins.length) * 15) - 
+        ((lowMarginItems / itemsWithMargins.length) * 10) + 10, 
+        20
+      );
+      score += Math.max(distributionScore, 0);
+    }
+
+    // 4. Operational Efficiency Score (15 points max)
+    const recentInvoiceCount = processedInvoices.filter(inv => {
+      const invoiceDate = new Date(inv.created_at);
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      return invoiceDate >= thirtyDaysAgo;
+    }).length;
+
+    const efficiencyScore = Math.min((recentInvoiceCount / 10) * 15, 15);
+    score += efficiencyScore;
+
+    // 5. Cost Control Score (10 points max)
+    if (itemsWithMargins.length > 0) {
+      const costVariance = itemsWithMargins.reduce((sum, item) => {
+        const targetMargin = 45;
+        const variance = Math.abs(item.margin - targetMargin);
+        return sum + variance;
+      }, 0) / itemsWithMargins.length;
+
+      const costControlScore = Math.max(10 - (costVariance / 5), 0);
+      score += costControlScore;
+    }
+
+    const finalScore = Math.max(0, Math.min(100, Math.round(score)));
+    
+    return {
+      score: finalScore,
+      breakdown: {
+        marginScore: Math.round(marginScore),
+        dataScore: Math.round(dataScore),
+        distributionScore: Math.round(score - marginScore - dataScore - efficiencyScore),
+        efficiencyScore: Math.round(efficiencyScore),
+        costControlScore: Math.round(score - marginScore - dataScore - efficiencyScore)
+      }
+    };
+  }
+
+  // Function to get score color and label
+  function getScoreColor(score) {
+    if (score >= 85) return { color: "#10b981", label: "Excellent" };
+    if (score >= 70) return { color: "#3b82f6", label: "Good" };
+    if (score >= 55) return { color: "#f59e0b", label: "Fair" };
+    return { color: "#ef4444", label: "Needs Improvement" };
   }
 
   if (loading) {
@@ -409,17 +594,17 @@ export default function ClientDashboard() {
                       cx="100"
                       cy="100"
                       r="85"
-                      stroke="#10b981"
+                      stroke={getScoreColor(dashboardData.aiProfitScore.score).color}
                       strokeWidth="10"
                       fill="transparent"
-                      strokeDasharray={`${(87 / 100) * (2 * Math.PI * 85)} ${2 * Math.PI * 85}`}
+                      strokeDasharray={`${(dashboardData.aiProfitScore.score / 100) * (2 * Math.PI * 85)} ${2 * Math.PI * 85}`}
                       strokeLinecap="round"
                       className="transition-all duration-1000 ease-out"
                     />
                   </svg>
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="text-center">
-                      <div className="text-2xl lg:text-3xl font-bold text-gray-900">87</div>
+                      <div className="text-2xl lg:text-3xl font-bold text-gray-900">{dashboardData.aiProfitScore.score}</div>
                       <div className="text-xs text-gray-500">Score</div>
                     </div>
                   </div>
@@ -429,8 +614,14 @@ export default function ClientDashboard() {
                 <div className="text-[10px] text-gray-600 mb-1.5 px-1">
                   Based on margin analysis and pricing optimization
                 </div>
-                <div className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-800">
-                  Excellent
+                <div 
+                  className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium"
+                  style={{ 
+                    backgroundColor: getScoreColor(dashboardData.aiProfitScore.score).color + '20',
+                    color: getScoreColor(dashboardData.aiProfitScore.score).color
+                  }}
+                >
+                  {getScoreColor(dashboardData.aiProfitScore.score).label}
                 </div>
               </div>
             </div>
@@ -452,29 +643,61 @@ export default function ClientDashboard() {
                 </div>
                 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 flex-1 min-h-0">
-                  <div className="bg-green-50 rounded-md p-2 border-l-3 border-green-500 flex flex-col justify-center min-h-0 h-full">
-                    <div className="flex items-center gap-1 mb-0.5">
-                      <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
-                      <span className="font-semibold text-gray-900 text-xs">Promote Caesar Salad</span>
-                    </div>
-                    <p className="text-[10px] text-gray-600">High margin, trending up 15%</p>
-                  </div>
-                  
-                  <div className="bg-yellow-50 rounded-md p-2 border-l-3 border-orange-500 flex flex-col justify-center min-h-0 h-full">
-                    <div className="flex items-center gap-1 mb-0.5">
-                      <div className="w-1.5 h-1.5 bg-orange-500 rounded-full"></div>
-                      <span className="font-semibold text-gray-900 text-xs">Fish Tacos Alert</span>
-                    </div>
-                    <p className="text-[10px] text-gray-600">Ingredients expiring in 2 days</p>
-                  </div>
-                  
-                  <div className="bg-gray-50 rounded-md p-2 border-l-3 border-gray-500 flex flex-col justify-center min-h-0 h-full">
-                    <div className="flex items-center gap-1 mb-0.5">
-                      <div className="w-1.5 h-1.5 bg-gray-500 rounded-full"></div>
-                      <span className="font-semibold text-gray-900 text-xs">Optimize Burger Portions</span>
-                    </div>
-                    <p className="text-[10px] text-gray-600">Cost savings opportunity available</p>
-                  </div>
+                  {dashboardData.aiRecommendations && dashboardData.aiRecommendations.length > 0 ? (
+                    dashboardData.aiRecommendations.map((rec, index) => (
+                      <div 
+                        key={index}
+                        className={`rounded-md p-2 border-l-3 flex flex-col justify-center min-h-0 h-full ${
+                          rec.color === 'green' ? 'bg-green-50 border-green-500' :
+                          rec.color === 'orange' ? 'bg-yellow-50 border-orange-500' :
+                          rec.color === 'red' ? 'bg-red-50 border-red-500' :
+                          rec.color === 'purple' ? 'bg-purple-50 border-purple-500' :
+                          rec.color === 'blue' ? 'bg-blue-50 border-blue-500' :
+                          'bg-gray-50 border-gray-500'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1 mb-0.5">
+                          <div 
+                            className={`w-1.5 h-1.5 rounded-full ${
+                              rec.color === 'green' ? 'bg-green-500' :
+                              rec.color === 'orange' ? 'bg-orange-500' :
+                              rec.color === 'red' ? 'bg-red-500' :
+                              rec.color === 'purple' ? 'bg-purple-500' :
+                              rec.color === 'blue' ? 'bg-blue-500' :
+                              'bg-gray-500'
+                            }`}
+                          ></div>
+                          <span className="font-semibold text-gray-900 text-xs">{rec.title}</span>
+                        </div>
+                        <p className="text-[10px] text-gray-600">{rec.description}</p>
+                      </div>
+                    ))
+                  ) : (
+                    // Fallback content while loading
+                    <>
+                      <div className="bg-gray-50 rounded-md p-2 border-l-3 border-gray-500 flex flex-col justify-center min-h-0 h-full">
+                        <div className="flex items-center gap-1 mb-0.5">
+                          <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-pulse"></div>
+                          <span className="font-semibold text-gray-900 text-xs">Loading...</span>
+                        </div>
+                        <p className="text-[10px] text-gray-600">Analyzing your data</p>
+                      </div>
+                      <div className="bg-gray-50 rounded-md p-2 border-l-3 border-gray-500 flex flex-col justify-center min-h-0 h-full">
+                        <div className="flex items-center gap-1 mb-0.5">
+                          <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-pulse"></div>
+                          <span className="font-semibold text-gray-900 text-xs">Loading...</span>
+                        </div>
+                        <p className="text-[10px] text-gray-600">Generating insights</p>
+                      </div>
+                      <div className="bg-gray-50 rounded-md p-2 border-l-3 border-gray-500 flex flex-col justify-center min-h-0 h-full">
+                        <div className="flex items-center gap-1 mb-0.5">
+                          <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-pulse"></div>
+                          <span className="font-semibold text-gray-900 text-xs">Loading...</span>
+                        </div>
+                        <p className="text-[10px] text-gray-600">Preparing recommendations</p>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
