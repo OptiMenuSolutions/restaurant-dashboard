@@ -4,6 +4,7 @@ import { useRouter } from "next/router";
 import ClientLayout from "../../components/ClientLayout";
 import supabase from "../../lib/supabaseClient";
 import { calculateStandardizedCost } from "/lib/standardizedUnits";
+import MenuItemSearch from "../../components/MenuItemSearch";
 import {
   IconSearch,
   IconX,
@@ -305,7 +306,9 @@ export default function MenuItems() {
     }
   }
 
-  function handleCardClick(id) {
+  function handleCardClick(menuItemOrId) {
+    // Handle both direct ID clicks and menu item object selection from search
+    const id = typeof menuItemOrId === 'object' ? menuItemOrId.id : menuItemOrId;
     setSelectedMenuItem(id);
     setExpandedComponents(new Set()); // Reset expanded components
     setViewMode('details');
@@ -411,10 +414,6 @@ export default function MenuItems() {
     return sorted;
   }
 
-  function clearSearch() {
-    setSearchTerm("");
-  }
-
   function resetOptimizer() {
     setOptimizedIngredients({});
     setOptimizedPrice(null);
@@ -511,27 +510,13 @@ export default function MenuItems() {
         </div>
         
         <div className="flex items-center gap-4">
-          {/* Search Bar */}
-          <div className="relative w-96">
-            <input
-              type="text"
-              placeholder="Search menu items by name..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-sm"
-            />
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <IconSearch size={16} className="text-gray-400" />
-            </div>
-            {searchTerm && (
-              <button 
-                onClick={clearSearch} 
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <IconX size={16} />
-              </button>
-            )}
-          </div>
+          {/* Menu Item Search */}
+          <MenuItemSearch 
+            restaurantId={restaurantId}
+            onMenuItemSelect={handleCardClick}
+            placeholder="Search menu items by name..."
+            className="w-96"
+          />
           
           {/* Sort Control */}
           <div className="flex items-center gap-2">

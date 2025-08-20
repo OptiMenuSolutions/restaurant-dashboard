@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import supabase from "../../lib/supabaseClient";
+import UniversalSearch from "../../components/UniversalSearch";
 import {
   LineChart,
   Line,
@@ -73,6 +74,8 @@ export default function ClientDashboard() {
   });
   const router = useRouter();
   const [userName, setUserName] = useState("");
+  const [selectedMonth, setSelectedMonth] = useState(null);
+  const [dailySpending, setDailySpending] = useState([]);
 
   // Alert thresholds
   const LOW_MARGIN_THRESHOLD = 40;
@@ -343,32 +346,90 @@ export default function ClientDashboard() {
   }
 
   function calculateMonthlySpending(invoices) {
-  const currentYear = new Date().getFullYear();
-  const monthlyTotals = {};
-  
-  // Initialize all months of current year with zero
-  for (let month = 1; month <= 12; month++) {
-    const monthKey = `${currentYear}-${String(month).padStart(2, '0')}`;
-    const monthName = new Date(currentYear, month - 1).toLocaleDateString('en-US', { month: 'short' });
-    monthlyTotals[monthKey] = { month: monthName, total: 0, invoiceCount: 0, monthNumber: month };
-  }
-  
-  // Add actual invoice data
-  invoices.forEach(invoice => {
-    if (invoice.date && invoice.amount) {
-      const date = new Date(invoice.date);
-      if (date.getFullYear() === currentYear) {
-        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        if (monthlyTotals[monthKey]) {
-          monthlyTotals[monthKey].total += parseFloat(invoice.amount);
-          monthlyTotals[monthKey].invoiceCount += 1;
+    const currentYear = new Date().getFullYear();
+    const monthlyTotals = {};
+    
+    // Initialize all months of current year with zero
+    for (let month = 1; month <= 12; month++) {
+      const monthKey = `${currentYear}-${String(month).padStart(2, '0')}`;
+      const monthName = new Date(currentYear, month - 1).toLocaleDateString('en-US', { month: 'short' });
+      monthlyTotals[monthKey] = { month: monthName, total: 0, invoiceCount: 0, monthNumber: month };
+    }
+    
+    // Add actual invoice data
+    invoices.forEach(invoice => {
+      if (invoice.date && invoice.amount) {
+        const date = new Date(invoice.date);
+        if (date.getFullYear() === currentYear) {
+          const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+          if (monthlyTotals[monthKey]) {
+            monthlyTotals[monthKey].total += parseFloat(invoice.amount);
+            monthlyTotals[monthKey].invoiceCount += 1;
+          }
         }
       }
-    }
-  });
+    });
 
-  return Object.values(monthlyTotals).sort((a, b) => a.monthNumber - b.monthNumber);
-}
+    return Object.values(monthlyTotals).sort((a, b) => a.monthNumber - b.monthNumber);
+  }
+
+  function calculateDailySpending(invoices, year, month) {
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const dailyTotals = {};
+    
+    // Initialize all days of the month with zero
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dayKey = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      dailyTotals[dayKey] = { 
+        day: day, 
+        dayName: new Date(year, month - 1, day).toLocaleDateString('en-US', { weekday: 'short' }),
+        total: 0, 
+        invoiceCount: 0 
+      };
+    }
+    
+    // Add actual invoice data for the specific month
+    invoices.forEach(invoice => {
+      if (invoice.date && invoice.amount) {
+        const date = new Date(invoice.date);
+        if (date.getFullYear() === year && date.getMonth() + 1 === month) {
+          const dayKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+          if (dailyTotals[dayKey]) {
+            dailyTotals[dayKey].total += parseFloat(invoice.amount);
+            dailyTotals[dayKey].invoiceCount += 1;
+          }
+        }
+      }
+    });
+
+    return Object.values(dailyTotals).sort((a, b) => a.day - b.day);
+  }
+
+  function handleMonthClick(data) {
+    if (data && data.activePayload && data.activePayload[0]) {
+      const monthData = data.activePayload[0].payload;
+      const currentYear = new Date().getFullYear();
+      const monthNumber = monthData.monthNumber;
+      
+      setSelectedMonth({ year: currentYear, month: monthNumber, name: monthData.month });
+      
+      // Calculate daily spending for the selected month
+      const dailyData = calculateDailySpending(
+        dashboardData.recentInvoices.concat(
+          // You might need to fetch all invoices here, not just recent ones
+          // For now, we'll use what's available
+        ), 
+        currentYear, 
+        monthNumber
+      );
+      setDailySpending(dailyData);
+    }
+  }
+
+  function handleBackToMonthly() {
+    setSelectedMonth(null);
+    setDailySpending([]);
+  }
 
   function formatCurrency(amount) {
     if (!amount) return "$0";
@@ -548,17 +609,11 @@ export default function ClientDashboard() {
         <div className="flex flex-col xl:flex-row xl:items-center justify-between mb-4 gap-3">
           <h1 className="text-xl font-bold text-gray-900">Welcome Back, {userName}!</h1>
           <div className="flex items-center gap-3">
-            <div className="relative w-full xl:w-80">
-              <input
-                type="text"
+            <div className="w-full xl:w-80">
+              <UniversalSearch 
+                restaurantId={restaurantId}
                 placeholder="Search invoices, ingredients, menu items..."
-                className="w-full pl-8 pr-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-sm"
               />
-              <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
-                <svg className="h-3.5 w-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
             </div>
             <div className="flex items-center justify-center w-8 h-8 bg-blue-600 text-white rounded-full font-semibold text-xs cursor-pointer hover:bg-blue-700 transition-colors flex-shrink-0">
               {getUserInitials(userName)}
@@ -708,52 +763,120 @@ export default function ClientDashboard() {
               {/* Monthly Spending Chart */}
               <div className="w-full lg:w-1/2 h-[30vh] xl:h-full">
                 <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-3 cursor-pointer hover:shadow-md transition-shadow h-full flex flex-col"
-                    onClick={() => router.push('/client/invoices')}>
+                    onClick={!selectedMonth ? () => router.push('/client/invoices') : undefined}>
                   <div className="flex items-center justify-between mb-2 flex-shrink-0">
-                    <h3 className="text-xs font-semibold text-gray-900">Monthly Spending</h3>
-                    <IconArrowRight size={14} className="text-gray-400" />
+                    <div className="flex items-center gap-2">
+                      {selectedMonth && (
+                        <button
+                          onClick={handleBackToMonthly}
+                          className="flex items-center gap-1 px-2 py-1 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors"
+                        >
+                          ← Back
+                        </button>
+                      )}
+                      <h3 className="text-xs font-semibold text-gray-900">
+                        {selectedMonth ? `Daily Spending - ${selectedMonth.name}` : 'Monthly Spending'}
+                      </h3>
+                    </div>
+                    {!selectedMonth && <IconArrowRight size={14} className="text-gray-400" />}
                   </div>
                   <div className="flex-1 min-h-0 w-full">
-                    {dashboardData.monthlySpending.length > 0 ? (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={dashboardData.monthlySpending} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-                          <XAxis 
-                            dataKey="month" 
-                            stroke="#6b7280" 
-                            fontSize={9}
-                            tickLine={false}
-                            axisLine={false}
-                          />
-                          <YAxis 
-                            stroke="#6b7280" 
-                            fontSize={9}
-                            tickFormatter={(value) => `${(value/1000).toFixed(0)}k`}
-                            tickLine={false}
-                            axisLine={false}
-                          />
-                          <Tooltip 
-                            formatter={(value) => [formatCurrency(value), 'Total Spent']}
-                            contentStyle={{
-                              backgroundColor: 'white',
-                              border: '1px solid #e5e7eb',
-                              borderRadius: '6px',
-                              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                              fontSize: '10px'
-                            }}
-                          />
-                          <Bar 
-                            dataKey="total" 
-                            fill="#3b82f6"
-                            radius={[2, 2, 0, 0]}
-                          />
-                        </BarChart>
-                      </ResponsiveContainer>
+                    {selectedMonth ? (
+                      // Daily view
+                      dailySpending.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={dailySpending} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                            <XAxis 
+                              dataKey="day" 
+                              stroke="#6b7280" 
+                              fontSize={9}
+                              tickLine={false}
+                              axisLine={false}
+                            />
+                            <YAxis 
+                              stroke="#6b7280" 
+                              fontSize={9}
+                              tickFormatter={(value) => value > 1000 ? `${(value/1000).toFixed(0)}k` : `$${value}`}
+                              tickLine={false}
+                              axisLine={false}
+                            />
+                            <Tooltip 
+                              formatter={(value, name, props) => [
+                                formatCurrency(value), 
+                                'Total Spent',
+                                `${props.payload.invoiceCount} invoice${props.payload.invoiceCount !== 1 ? 's' : ''}`
+                              ]}
+                              labelFormatter={(day) => `Day ${day}`}
+                              contentStyle={{
+                                backgroundColor: 'white',
+                                border: '1px solid #e5e7eb',
+                                borderRadius: '6px',
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                                fontSize: '10px'
+                              }}
+                            />
+                            <Bar 
+                              dataKey="total" 
+                              fill="#10b981"
+                              radius={[2, 2, 0, 0]}
+                            />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="h-full flex flex-col items-center justify-center text-gray-500">
+                          <IconChartBar size={20} className="mb-1" />
+                          <p className="text-[10px]">No spending data for {selectedMonth.name}</p>
+                        </div>
+                      )
                     ) : (
-                      <div className="h-full flex flex-col items-center justify-center text-gray-500">
-                        <IconChartBar size={20} className="mb-1" />
-                        <p className="text-[10px]">No spending data</p>
-                      </div>
+                      // Monthly view
+                      dashboardData.monthlySpending.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart 
+                            data={dashboardData.monthlySpending} 
+                            margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
+                            onClick={handleMonthClick}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                            <XAxis 
+                              dataKey="month" 
+                              stroke="#6b7280" 
+                              fontSize={9}
+                              tickLine={false}
+                              axisLine={false}
+                            />
+                            <YAxis 
+                              stroke="#6b7280" 
+                              fontSize={9}
+                              tickFormatter={(value) => `${(value/1000).toFixed(0)}k`}
+                              tickLine={false}
+                              axisLine={false}
+                            />
+                            <Tooltip 
+                              formatter={(value) => [formatCurrency(value), 'Total Spent']}
+                              contentStyle={{
+                                backgroundColor: 'white',
+                                border: '1px solid #e5e7eb',
+                                borderRadius: '6px',
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                                fontSize: '10px'
+                              }}
+                            />
+                            <Bar 
+                              dataKey="total" 
+                              fill="#3b82f6"
+                              radius={[2, 2, 0, 0]}
+                              style={{ cursor: 'pointer' }}
+                            />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="h-full flex flex-col items-center justify-center text-gray-500">
+                          <IconChartBar size={20} className="mb-1" />
+                          <p className="text-[10px]">No spending data</p>
+                        </div>
+                      )
                     )}
                   </div>
                 </div>

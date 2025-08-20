@@ -1,7 +1,8 @@
-// pages/client/ingredients.js
+// pages/client/ingredients.js - Complete updated version with IngredientSearch
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import ClientLayout from "../../components/ClientLayout";
+import IngredientSearch from "../../components/IngredientSearch";
 import supabase from "../../lib/supabaseClient";
 import {
   LineChart,
@@ -31,6 +32,8 @@ import {
 
 export default function Ingredients() {
   const router = useRouter();
+  const { selected } = router.query; // Get selected ingredient ID from query params
+  
   const [ingredients, setIngredients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -112,6 +115,14 @@ export default function Ingredients() {
       }
 
       setIngredients(data || []);
+
+      // Auto-select ingredient if selected query parameter is provided
+      if (selected && data) {
+        const selectedIngredientData = data.find(ingredient => ingredient.id === selected);
+        if (selectedIngredientData) {
+          handleIngredientSelect(selectedIngredientData);
+        }
+      }
     } catch (err) {
       setError("An unexpected error occurred while fetching ingredients");
     } finally {
@@ -123,7 +134,7 @@ export default function Ingredients() {
     try {
       setLoadingDetail(true);
       
-      // Fetch purchase history from invoice items (matching your working code)
+      // Fetch purchase history from invoice items
       const { data: historyData, error: historyError } = await supabase
         .from("invoice_items")
         .select(`
@@ -137,8 +148,6 @@ export default function Ingredients() {
         .eq("ingredient_id", ingredientId)
         .not("invoices.date", "is", null)
         .order("invoices(date)", { ascending: false });
-
-      console.log('History data query result:', historyData, historyError); // Debug log
 
       if (historyError) {
         console.error('Error fetching history data:', historyError);
@@ -179,6 +188,14 @@ export default function Ingredients() {
   function handleIngredientSelect(ingredient) {
     setSelectedIngredient(ingredient);
     fetchIngredientDetail(ingredient.id);
+    
+    // Update URL without triggering a page reload
+    router.replace(`/client/ingredients?selected=${ingredient.id}`, undefined, { shallow: true });
+  }
+
+  // Handle ingredient selection from search
+  function handleSearchIngredientSelect(ingredient) {
+    handleIngredientSelect(ingredient);
   }
 
   function handleSort(column) {
@@ -339,7 +356,7 @@ export default function Ingredients() {
       pageDescription="Monitor ingredient costs and availability"
       pageIcon={IconChefHat}
     >
-      {/* Header Section - All in one line */}
+      {/* Header Section - Updated to use IngredientSearch */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Ingredient Inventory</h1>
@@ -347,26 +364,13 @@ export default function Ingredients() {
         </div>
         
         <div className="flex items-center gap-4">
-          {/* Search Bar */}
-          <div className="relative w-96">
-            <input
-              type="text"
+          {/* Ingredient Search Bar */}
+          <div className="w-96">
+            <IngredientSearch 
+              restaurantId={restaurantId}
+              onIngredientSelect={handleSearchIngredientSelect}
               placeholder="Search ingredients by name or unit..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-sm"
             />
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <IconSearch size={16} className="text-gray-400" />
-            </div>
-            {searchTerm && (
-              <button 
-                onClick={clearSearch} 
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <IconX size={16} />
-              </button>
-            )}
           </div>
           
           {/* Add Ingredient Button */}
