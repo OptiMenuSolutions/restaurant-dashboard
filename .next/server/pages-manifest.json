@@ -1,9 +1,8 @@
 {
+  "/_app": "pages/_app.js",
   "/_error": "pages/_error.js",
   "/_document": "pages/_document.js",
-  "/_app": "pages/_app.js",
-  "/client/dashboard": "pages/client/dashboard.js",
+  "/client/login": "pages/client/login.js",
   "/client/invoices": "pages/client/invoices.js",
-  "/client/menu-items": "pages/client/menu-items.js",
-  "/api/ai-recommendations": "pages/api/ai-recommendations.js"
+  "/client/dashboard": "pages/client/dashboard.js"
 }

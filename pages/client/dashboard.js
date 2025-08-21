@@ -15,6 +15,7 @@ import {
   Bar,
   Area,
   AreaChart,
+  Cell,
 } from "recharts";
 import {
   IconDashboard,
@@ -52,6 +53,44 @@ const GeometricBackground = ({ children }) => (
   </>
 );
 
+// Add this style component after GeometricBackground
+const ChartStyles = () => (
+  <style jsx global>{`
+    .recharts-responsive-container,
+    .recharts-responsive-container:focus,
+    .recharts-wrapper,
+    .recharts-wrapper:focus,
+    .recharts-surface,
+    .recharts-surface:focus,
+    .recharts-cartesian-grid,
+    .recharts-cartesian-grid:focus,
+    .recharts-bar,
+    .recharts-bar:focus,
+    .recharts-rectangle,
+    .recharts-rectangle:focus,
+    svg,
+    svg:focus {
+      outline: none !important;
+      border: none !important;
+    }
+    
+    /* Remove focus outlines from all SVG elements */
+    svg * {
+      outline: none !important;
+    }
+    
+    /* Specifically target the chart container */
+    .recharts-responsive-container > div {
+      outline: none !important;
+    }
+    
+    /* Remove any focus states */
+    *:focus {
+      outline: none !important;
+    }
+  `}</style>
+);
+
 export default function ClientDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -76,6 +115,7 @@ export default function ClientDashboard() {
   const [userName, setUserName] = useState("");
   const [selectedMonth, setSelectedMonth] = useState(null);
   const [dailySpending, setDailySpending] = useState([]);
+  const [restaurantName, setRestaurantName] = useState("");
 
   // Alert thresholds
   const LOW_MARGIN_THRESHOLD = 40;
@@ -92,35 +132,44 @@ export default function ClientDashboard() {
   }, [restaurantId]);
 
   async function getRestaurantId() {
-  try {
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    
-    if (userError || !user) {
-      setError("Authentication required");
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError || !user) {
+        setError("Authentication required");
+        setLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("restaurant_id, full_name")
+        .eq("id", user.id)
+        .single();
+
+      if (error || !data?.restaurant_id) {
+        setError("Could not determine restaurant access");
+        setLoading(false);
+        return;
+      }
+
+      setRestaurantId(data.restaurant_id);
+      const firstName = data.full_name ? data.full_name.split(' ')[0] : "User";
+      setUserName(firstName);
+
+      // Fetch restaurant name
+      const { data: restaurantData } = await supabase
+        .from("restaurants")
+        .select("name")
+        .eq("id", data.restaurant_id)
+        .single();
+
+      setRestaurantName(restaurantData?.name || "Your Restaurant");
+    } catch (err) {
+      setError("An unexpected error occurred");
       setLoading(false);
-      return;
     }
-
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("restaurant_id, full_name")
-      .eq("id", user.id)
-      .single();
-
-    if (error || !data?.restaurant_id) {
-      setError("Could not determine restaurant access");
-      setLoading(false);
-      return;
-    }
-
-    setRestaurantId(data.restaurant_id);
-    const firstName = data.full_name ? data.full_name.split(' ')[0] : "User";
-    setUserName(firstName);
-  } catch (err) {
-    setError("An unexpected error occurred");
-    setLoading(false);
   }
-}
 
   async function fetchDashboardData() {
     try {
@@ -405,24 +454,41 @@ export default function ClientDashboard() {
     return Object.values(dailyTotals).sort((a, b) => a.day - b.day);
   }
 
-  function handleMonthClick(data) {
-    if (data && data.activePayload && data.activePayload[0]) {
-      const monthData = data.activePayload[0].payload;
+  function handleMonthClick(data, index) {
+    if (data && data.monthNumber) {
       const currentYear = new Date().getFullYear();
-      const monthNumber = monthData.monthNumber;
+      const monthNumber = data.monthNumber;
       
-      setSelectedMonth({ year: currentYear, month: monthNumber, name: monthData.month });
+      setSelectedMonth({ year: currentYear, month: monthNumber, name: data.month });
       
-      // Calculate daily spending for the selected month
-      const dailyData = calculateDailySpending(
-        dashboardData.recentInvoices.concat(
-          // You might need to fetch all invoices here, not just recent ones
-          // For now, we'll use what's available
-        ), 
-        currentYear, 
-        monthNumber
-      );
+      // Fetch all invoices for the selected month
+      fetchAllInvoicesForMonth(currentYear, monthNumber);
+    }
+  }
+
+  async function fetchAllInvoicesForMonth(year, month) {
+    try {
+      // Create start and end dates for the month
+      const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+      const endDate = month === 12 
+        ? `${year + 1}-01-01` 
+        : `${year}-${String(month + 1).padStart(2, '0')}-01`;
+
+      const { data: allInvoices, error } = await supabase
+        .from("invoices")
+        .select("*")
+        .eq("restaurant_id", restaurantId)
+        .gte('date', startDate)
+        .lt('date', endDate);
+
+      if (error) throw error;
+
+      const dailyData = calculateDailySpending(allInvoices || [], year, month);
       setDailySpending(dailyData);
+    } catch (error) {
+      console.error('Error fetching monthly invoices:', error);
+      // Fallback to empty data
+      setDailySpending([]);
     }
   }
 
@@ -604,6 +670,7 @@ export default function ClientDashboard() {
 
   return (
     <GeometricBackground>
+      <ChartStyles />
       <ClientLayout>
         {/* Header with Welcome Message, Search Bar, and Profile */}
         <div className="flex flex-col xl:flex-row xl:items-center justify-between mb-4 gap-3">
@@ -621,12 +688,12 @@ export default function ClientDashboard() {
           </div>
         </div>
 
-        {/* Dashboard Responsive Layout */}
-        <div className="flex flex-col xl:flex-row gap-3 h-auto xl:h-[75vh]">
+        {/* Dashboard Layout - New Grid Structure */}
+        <div className="grid grid-cols-12 gap-3 h-[75vh]">
           
           {/* Left Column - AI Profit Score */}
-          <div className="w-full xl:w-[15%] flex xl:flex-col gap-3">
-            <div className="w-full bg-white rounded-lg border border-gray-200 shadow-sm p-3 flex flex-col min-h-[220px] xl:min-h-0 xl:h-full">
+          <div className="col-span-2 row-span-2">
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-3 h-[262px] flex flex-col">
               <div className="text-center flex-shrink-0">
                 <div className="flex items-center justify-center gap-1.5 mb-1.5">
                   <IconBrain size={14} className="text-blue-600" />
@@ -682,362 +749,401 @@ export default function ClientDashboard() {
             </div>
           </div>
 
-          {/* Main Content Area */}
-          <div className="flex-1 flex flex-col gap-3">
+          {/* Welcome Message - Top Row */}
+          <div className="col-span-10">
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 h-[50px] flex items-center">
+              <h1 className="text-2xl font-bold text-gray-900">Welcome back, {userName}!</h1>
+            </div>
+          </div>
+
+          {/* Top Right Grid - 3 smaller cards */}
+          <div className="col-span-10 grid grid-cols-7 gap-3">
             
-            {/* Top Row - AI Recommendations */}
-            <div className="w-full h-auto xl:h-[15vh]">
-              <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-3 h-full flex flex-col">
-                <div className="flex items-center gap-2 mb-2 flex-shrink-0">
-                  <div className="flex items-center justify-center w- h-3 bg-gradient-to-br from-purple-100 to-pink-100 rounded-lg">
-                    <IconSparkles size={14} className="text-purple-600" />
+            {/* Recent Invoices */}
+            <div className="col-span-3 bg-white rounded-lg border border-gray-200 shadow-sm p-3 h-[200px]">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-semibold text-gray-900">Recent Invoices</h3>
+                <button 
+                  onClick={() => router.push('/client/invoices')}
+                  className="text-blue-600 hover:text-blue-700 text-[10px] font-medium"
+                >
+                  View All
+                </button>
+              </div>
+              <div className="flex flex-col gap-2" style={{ height: 'calc(100% - 25px)' }}>
+                {dashboardData.recentInvoices.slice(0, 3).map(invoice => (
+                  <div key={invoice.id} className="flex items-center justify-between p-1.5 bg-gray-50 rounded-md" style={{ height: 'calc(33.33% - 4px)' }}>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-gray-900 text-xs truncate">{invoice.number}</p>
+                      <p className="text-[10px] text-gray-500 truncate">{invoice.supplier}</p>
+                    </div>
+                    <div className="text-right ml-2">
+                      <p className="font-semibold text-gray-900 text-xs">{formatCurrency(invoice.amount)}</p>
+                      <p className="text-[10px] text-gray-500">{formatDate(invoice.date)}</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="text-xs font-semibold text-gray-900">AI Daily Dish Recommendations</h3>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 flex-1 min-h-0">
-                  {dashboardData.aiRecommendations && dashboardData.aiRecommendations.length > 0 ? (
-                    dashboardData.aiRecommendations.map((rec, index) => (
-                      <div 
-                        key={index}
-                        className={`rounded-md p-2 border-l-3 flex flex-col justify-center min-h-0 h-full ${
-                          rec.color === 'green' ? 'bg-green-50 border-green-500' :
-                          rec.color === 'orange' ? 'bg-yellow-50 border-orange-500' :
-                          rec.color === 'red' ? 'bg-red-50 border-red-500' :
-                          rec.color === 'purple' ? 'bg-purple-50 border-purple-500' :
-                          rec.color === 'blue' ? 'bg-blue-50 border-blue-500' :
-                          'bg-gray-50 border-gray-500'
-                        }`}
-                      >
-                        <div className="flex items-center gap-1 mb-0.5">
-                          <div 
-                            className={`w-1.5 h-1.5 rounded-full ${
-                              rec.color === 'green' ? 'bg-green-500' :
-                              rec.color === 'orange' ? 'bg-orange-500' :
-                              rec.color === 'red' ? 'bg-red-500' :
-                              rec.color === 'purple' ? 'bg-purple-500' :
-                              rec.color === 'blue' ? 'bg-blue-500' :
-                              'bg-gray-500'
-                            }`}
-                          ></div>
-                          <span className="font-semibold text-gray-900 text-xs">{rec.title}</span>
-                        </div>
-                        <p className="text-[10px] text-gray-600">{rec.description}</p>
-                      </div>
-                    ))
-                  ) : (
-                    // Fallback content while loading
-                    <>
-                      <div className="bg-gray-50 rounded-md p-2 border-l-3 border-gray-500 flex flex-col justify-center min-h-0 h-full">
-                        <div className="flex items-center gap-1 mb-0.5">
-                          <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-pulse"></div>
-                          <span className="font-semibold text-gray-900 text-xs">Loading...</span>
-                        </div>
-                        <p className="text-[10px] text-gray-600">Analyzing your data</p>
-                      </div>
-                      <div className="bg-gray-50 rounded-md p-2 border-l-3 border-gray-500 flex flex-col justify-center min-h-0 h-full">
-                        <div className="flex items-center gap-1 mb-0.5">
-                          <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-pulse"></div>
-                          <span className="font-semibold text-gray-900 text-xs">Loading...</span>
-                        </div>
-                        <p className="text-[10px] text-gray-600">Generating insights</p>
-                      </div>
-                      <div className="bg-gray-50 rounded-md p-2 border-l-3 border-gray-500 flex flex-col justify-center min-h-0 h-full">
-                        <div className="flex items-center gap-1 mb-0.5">
-                          <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-pulse"></div>
-                          <span className="font-semibold text-gray-900 text-xs">Loading...</span>
-                        </div>
-                        <p className="text-[10px] text-gray-600">Preparing recommendations</p>
-                      </div>
-                    </>
-                  )}
-                </div>
+                ))}
               </div>
             </div>
 
-            {/* Middle Row - Charts */}
-            <div className="flex flex-col lg:flex-row gap-3 h-auto xl:h-[55vh]">
-              
-              {/* Monthly Spending Chart */}
-              <div className="w-full lg:w-1/2 h-[30vh] xl:h-full">
-                <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-3 cursor-pointer hover:shadow-md transition-shadow h-full flex flex-col"
-                    onClick={!selectedMonth ? () => router.push('/client/invoices') : undefined}>
-                  <div className="flex items-center justify-between mb-2 flex-shrink-0">
-                    <div className="flex items-center gap-2">
-                      {selectedMonth && (
-                        <button
-                          onClick={handleBackToMonthly}
-                          className="flex items-center gap-1 px-2 py-1 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors"
-                        >
-                          ← Back
-                        </button>
-                      )}
-                      <h3 className="text-xs font-semibold text-gray-900">
-                        {selectedMonth ? `Daily Spending - ${selectedMonth.name}` : 'Monthly Spending'}
-                      </h3>
+            {/* Highest Ingredient Costs */}
+            <div className="col-span-3 bg-white rounded-lg border border-gray-200 shadow-sm p-3 h-[200px]">
+              <h3 className="text-xs font-semibold text-gray-900 mb-2">Highest Ingredient Costs</h3>
+              <div className="flex flex-col gap-2" style={{ height: 'calc(100% - 25px)' }}>
+                {dashboardData.ingredientTrends.map((ingredient, index) => (
+                  <div key={index} className="flex items-center justify-between p-1.5 bg-gray-50 rounded-md" style={{ height: 'calc(33.33% - 4px)' }}>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-gray-900 text-xs truncate">{ingredient.fullName}</p>
+                      <p className="text-[10px] text-gray-500">per {ingredient.unit}</p>
                     </div>
-                    {!selectedMonth && <IconArrowRight size={14} className="text-gray-400" />}
+                    <div className="text-right ml-2">
+                      <p className="font-semibold text-gray-900 text-xs">{formatCurrencyDetailed(ingredient.price)}</p>
+                    </div>
                   </div>
-                  <div className="flex-1 min-h-0 w-full">
-                    {selectedMonth ? (
-                      // Daily view
-                      dailySpending.length > 0 ? (
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={dailySpending} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-                            <XAxis 
-                              dataKey="day" 
-                              stroke="#6b7280" 
-                              fontSize={9}
-                              tickLine={false}
-                              axisLine={false}
-                            />
-                            <YAxis 
-                              stroke="#6b7280" 
-                              fontSize={9}
-                              tickFormatter={(value) => value > 1000 ? `${(value/1000).toFixed(0)}k` : `$${value}`}
-                              tickLine={false}
-                              axisLine={false}
-                            />
-                            <Tooltip 
-                              formatter={(value, name, props) => [
-                                formatCurrency(value), 
-                                'Total Spent',
-                                `${props.payload.invoiceCount} invoice${props.payload.invoiceCount !== 1 ? 's' : ''}`
-                              ]}
-                              labelFormatter={(day) => `Day ${day}`}
-                              contentStyle={{
-                                backgroundColor: 'white',
-                                border: '1px solid #e5e7eb',
-                                borderRadius: '6px',
-                                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                                fontSize: '10px'
-                              }}
-                            />
-                            <Bar 
-                              dataKey="total" 
-                              fill="#10b981"
-                              radius={[2, 2, 0, 0]}
-                            />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      ) : (
-                        <div className="h-full flex flex-col items-center justify-center text-gray-500">
-                          <IconChartBar size={20} className="mb-1" />
-                          <p className="text-[10px]">No spending data for {selectedMonth.name}</p>
-                        </div>
-                      )
-                    ) : (
-                      // Monthly view
-                      dashboardData.monthlySpending.length > 0 ? (
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart 
-                            data={dashboardData.monthlySpending} 
-                            margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
+                ))}
+              </div>
+            </div>
+
+            {/* Your Restaurant Data - Enhanced */}
+            <div className="col-span-1 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg border border-blue-200 shadow-sm p-3 h-[200px] flex flex-col justify-center items-center relative overflow-hidden">
+              
+              {/* Main content */}
+              <div className="text-center relative z-10">
+                <div className="flex items-center justify-center w-12 h-12 bg-blue-600 rounded-full mb-3 mx-auto">
+                  <IconChefHat size={20} className="text-white" />
+                </div>
+                <h3 className="text-xs font-semibold text-blue-800 mb-1">Your Restaurant</h3>
+                <h2 className="text-sm font-bold text-gray-900 mb-1 leading-tight">{restaurantName}</h2>
+                <p className="text-[10px] text-gray-600 leading-tight">Management Dashboard</p>
+                
+                {/* Status indicator */}
+                <div className="flex items-center justify-center gap-1 mt-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  <span className="text-[10px] text-gray-600">Active</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Middle Row - AI Recommendations */}
+          <div className="col-span-5">
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-3 h-[320px] flex flex-col">
+              <div className="flex items-center gap-2 mb-2 flex-shrink-0">
+                <div className="flex items-center justify-center w-6 h-6 bg-blue-100 rounded-lg">
+                  <IconSparkles size={14} className="text-blue-600" />
+                </div>
+                <h3 className="text-xs font-semibold text-gray-900">AI Daily Dish Recommendations</h3>
+              </div>
+              
+              <div className="flex flex-col flex-1 min-h-0 gap-2" style={{ height: 'calc(100% - 40px)' }}>
+                {dashboardData.aiRecommendations && dashboardData.aiRecommendations.length > 0 ? (
+                  dashboardData.aiRecommendations.map((rec, index) => (
+                    <div 
+                      key={index}
+                      className="rounded-md p-3 border-l-4 border-blue-500 bg-blue-50 flex flex-col justify-center"
+                      style={{ height: 'calc(33.33% - 4px)' }}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                        <span className="font-semibold text-gray-900 text-sm">{rec.title}</span>
+                      </div>
+                      <p className="text-xs text-gray-600">{rec.description}</p>
+                    </div>
+                  ))
+                ) : (
+                  // Fallback content while loading
+                  <>
+                    <div className="bg-blue-50 rounded-md p-3 border-l-4 border-blue-500" style={{ height: 'calc(33.33% - 4px)' }}>
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+                        <span className="font-semibold text-gray-900 text-sm">Loading...</span>
+                      </div>
+                      <p className="text-xs text-gray-600">Analyzing your data</p>
+                    </div>
+                    <div className="bg-blue-50 rounded-md p-3 border-l-4 border-blue-500" style={{ height: 'calc(33.33% - 4px)' }}>
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+                        <span className="font-semibold text-gray-900 text-sm">Loading...</span>
+                      </div>
+                      <p className="text-xs text-gray-600">Generating insights</p>
+                    </div>
+                    <div className="bg-blue-50 rounded-md p-3 border-l-4 border-blue-500" style={{ height: 'calc(33.33% - 4px)' }}>
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+                        <span className="font-semibold text-gray-900 text-sm">Loading...</span>
+                      </div>
+                      <p className="text-xs text-gray-600">Preparing recommendations</p>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Monthly Spending Chart */}
+          <div className="col-span-7">
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-3 h-[320px] flex flex-col">
+              <div className="flex items-center justify-between mb-2 flex-shrink-0">
+                <div className="flex items-center gap-2">
+                  {selectedMonth && (
+                    <button
+                      onClick={handleBackToMonthly}
+                      className="flex items-center gap-1 px-2 py-1 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors"
+                    >
+                      ← Back
+                    </button>
+                  )}
+                  <h3 className="text-xs font-semibold text-gray-900">
+                    {selectedMonth ? `Daily Spending - ${selectedMonth.name}` : 'Monthly Spending Chart'}
+                  </h3>
+                </div>
+                {!selectedMonth && (
+                  <button 
+                    onClick={() => router.push('/client/invoices')}
+                    className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700"
+                  >
+                    View All <IconArrowRight size={14} />
+                  </button>
+                )}
+              </div>
+              <div className="flex-1 min-h-0 w-full">
+                {selectedMonth ? (
+                  // Daily view
+                  dailySpending.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={dailySpending} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
+                        <defs>
+                          <linearGradient id="greenGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#10b981" stopOpacity={1}/>
+                            <stop offset="100%" stopColor="#059669" stopOpacity={0.8}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                        <XAxis 
+                          dataKey="day" 
+                          stroke="#6b7280" 
+                          fontSize={9}
+                          tickLine={false}
+                          axisLine={false}
+                        />
+                        <YAxis 
+                          stroke="#6b7280" 
+                          fontSize={9}
+                          tickFormatter={(value) => value > 1000 ? `${(value/1000).toFixed(0)}k` : `$${value}`}
+                          tickLine={false}
+                          axisLine={false}
+                        />
+                        <Tooltip 
+                          formatter={(value, name, props) => [
+                            formatCurrency(value), 
+                            'Total Spent'
+                          ]}
+                          labelFormatter={(day, payload) => {
+                            if (payload && payload[0]) {
+                              return `${payload[0].payload.dayName}, Day ${day} - ${payload[0].payload.invoiceCount} invoice${payload[0].payload.invoiceCount !== 1 ? 's' : ''}`;
+                            }
+                            return `Day ${day}`;
+                          }}
+                          contentStyle={{
+                            backgroundColor: 'white',
+                            border: '1px solid #e5e7eb',
+                            borderRadius: '6px',
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                            fontSize: '10px'
+                          }}
+                        />
+                        <Bar 
+                          dataKey="total" 
+                          fill="url(#greenGradient)"
+                          radius={[6, 6, 0, 0]}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-full flex flex-col items-center justify-center text-gray-500">
+                      <IconChartBar size={20} className="mb-1" />
+                      <p className="text-[10px]">No spending data for {selectedMonth.name}</p>
+                    </div>
+                  )
+                ) : (
+                  // Monthly view
+                  dashboardData.monthlySpending.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart 
+                          data={dashboardData.monthlySpending} 
+                          margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
+                        >
+                          <defs>
+                            <linearGradient id="blueGradient" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="#3b82f6" stopOpacity={1}/>
+                              <stop offset="100%" stopColor="#1d4ed8" stopOpacity={0.8}/>
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                          <XAxis 
+                            dataKey="month" 
+                            stroke="#6b7280" 
+                            fontSize={9}
+                            tickLine={false}
+                            axisLine={false}
+                          />
+                          <YAxis 
+                            stroke="#6b7280" 
+                            fontSize={9}
+                            tickFormatter={(value) => `${(value/1000).toFixed(0)}k`}
+                            tickLine={false}
+                            axisLine={false}
+                          />
+                          <Tooltip 
+                            formatter={(value) => [formatCurrency(value), 'Total Spent']}
+                            labelFormatter={(month, payload) => {
+                              if (payload && payload[0]) {
+                                return `${month} - ${payload[0].payload.invoiceCount} invoice${payload[0].payload.invoiceCount !== 1 ? 's' : ''} (Click to view daily)`;
+                              }
+                              return month;
+                            }}
+                            contentStyle={{
+                              backgroundColor: 'white',
+                              border: '1px solid #e5e7eb',
+                              borderRadius: '6px',
+                              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                              fontSize: '10px'
+                            }}
+                          />
+                          <Bar 
+                            dataKey="total" 
+                            fill="url(#blueGradient)"
+                            radius={[8, 8, 0, 0]}
+                            style={{ cursor: 'pointer' }}
                             onClick={handleMonthClick}
                           >
-                            <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-                            <XAxis 
-                              dataKey="month" 
-                              stroke="#6b7280" 
-                              fontSize={9}
-                              tickLine={false}
-                              axisLine={false}
-                            />
-                            <YAxis 
-                              stroke="#6b7280" 
-                              fontSize={9}
-                              tickFormatter={(value) => `${(value/1000).toFixed(0)}k`}
-                              tickLine={false}
-                              axisLine={false}
-                            />
-                            <Tooltip 
-                              formatter={(value) => [formatCurrency(value), 'Total Spent']}
-                              contentStyle={{
-                                backgroundColor: 'white',
-                                border: '1px solid #e5e7eb',
-                                borderRadius: '6px',
-                                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                                fontSize: '10px'
-                              }}
-                            />
-                            <Bar 
-                              dataKey="total" 
-                              fill="#3b82f6"
-                              radius={[2, 2, 0, 0]}
-                              style={{ cursor: 'pointer' }}
-                            />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      ) : (
-                        <div className="h-full flex flex-col items-center justify-center text-gray-500">
-                          <IconChartBar size={20} className="mb-1" />
-                          <p className="text-[10px]">No spending data</p>
-                        </div>
-                      )
-                    )}
-                  </div>
-                </div>
+                            {dashboardData.monthlySpending.map((entry, index) => (
+                              <Cell 
+                                key={`cell-${index}`} 
+                                fill={entry.total > 5000 ? '#ef4444' : entry.total > 2000 ? '#f59e0b' : 'url(#blueGradient)'} 
+                              />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                  ) : (
+                    <div className="h-full flex flex-col items-center justify-center text-gray-500">
+                      <IconChartBar size={20} className="mb-1" />
+                      <p className="text-[10px]">No spending data</p>
+                    </div>
+                  )
+                )}
               </div>
+            </div>
+          </div>
 
-              {/* Menu Analysis */}
-              <div className="w-full lg:w-1/2 h-[30vh] xl:h-full">
-                <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-3 h-full flex flex-col">
-                  <div className="flex items-center justify-between mb-2 flex-shrink-0">
-                    <h3 className="text-xs font-semibold text-gray-900">Menu Analysis</h3>
-                    <div className="flex bg-gray-100 rounded-md p-0.5">
-                      <button
-                        onClick={() => setMarginView("Highest-Margin")}
-                        className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors ${
-                          marginView === "Highest-Margin" 
-                            ? 'bg-white text-gray-900 shadow-sm' 
-                            : 'text-gray-600 hover:text-gray-900'
-                        }`}
-                      >
-                        High
-                      </button>
-                      <button
-                        onClick={() => setMarginView("Lowest-Margin")}
-                        className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors ${
-                          marginView === "Lowest-Margin" 
-                            ? 'bg-white text-gray-900 shadow-sm' 
-                            : 'text-gray-600 hover:text-gray-900'
-                        }`}
-                      >
-                        Low
-                      </button>
+          {/* Bottom Row - Key Metrics */}
+          <div className="col-span-5">
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-3 h-[200px]">
+              <h3 className="text-xs font-semibold text-gray-900 mb-2">Key Metrics</h3>
+              <div className="grid grid-cols-2 gap-2" style={{ height: 'calc(100% - 25px)' }}>
+                <div 
+                  className="bg-blue-50 rounded-md p-2 cursor-pointer hover:bg-blue-100 transition-colors flex flex-col justify-center h-full"
+                  onClick={() => router.push('/client/invoices')}
+                >
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <div className="flex items-center justify-center w-4 h-4 bg-blue-100 rounded">
+                      <IconFileText size={10} className="text-blue-600" />
+                    </div>
+                    <div className="text-sm font-bold text-gray-900">{dashboardData.totalInvoices}</div>
+                  </div>
+                  <div className="text-[10px] text-gray-600">Invoices</div>
+                </div>
+                
+                <div 
+                  className="bg-blue-50 rounded-md p-2 cursor-pointer hover:bg-blue-100 transition-colors flex flex-col justify-center h-full"
+                  onClick={() => router.push('/client/ingredients')}
+                >
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <div className="flex items-center justify-center w-4 h-4 bg-blue-100 rounded">
+                      <IconClipboardList size={10} className="text-blue-600" />
+                    </div>
+                    <div className="text-sm font-bold text-gray-900">{dashboardData.totalIngredients}</div>
+                  </div>
+                  <div className="text-[10px] text-gray-600">Ingredients</div>
+                </div>
+                
+                <div 
+                  className="bg-blue-50 rounded-md p-2 cursor-pointer hover:bg-blue-100 transition-colors flex flex-col justify-center h-full"
+                  onClick={() => router.push('/client/menu-items')}
+                >
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <div className="flex items-center justify-center w-4 h-4 bg-blue-100 rounded">
+                      <IconChefHat size={10} className="text-blue-600" />
+                    </div>
+                    <div className="text-sm font-bold text-gray-900">{dashboardData.totalMenuItems}</div>
+                  </div>
+                  <div className="text-[10px] text-gray-600">Menu Items</div>
+                </div>
+                
+                <div className="bg-blue-50 rounded-md p-2 flex flex-col justify-center h-full">
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <div className="flex items-center justify-center w-4 h-4 bg-blue-100 rounded">
+                      <IconCurrencyDollar size={10} className="text-blue-600" />
+                    </div>
+                    <div 
+                      className="text-sm font-bold"
+                      style={{ color: getMarginColor(dashboardData.averageMargin) }}
+                    >
+                      {dashboardData.averageMargin.toFixed(1)}%
                     </div>
                   </div>
-                  <div className="flex flex-col gap-1.5 flex-1 overflow-y-auto">
-                    {getMarginItems().slice(0, 3).map((item, index) => (
-                      <div key={item.id} className="flex items-center justify-between p-2.5 bg-gray-50 rounded-md" style={{ height: 'calc(33.333% - 0.25rem)' }}>
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-medium text-gray-900 text-xs truncate">{item.name}</h4>
-                          <p className="text-[10px] text-gray-500">{formatCurrencyDetailed(item.price)}</p>
-                        </div>
-                        <div className="text-right ml-2 flex-shrink-0">
-                          <div 
-                            className="font-semibold text-xs"
-                            style={{ color: getMarginColor(item.margin) }}
-                          >
-                            {item.margin.toFixed(1)}%
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  <div className="text-[10px] text-gray-600">Avg Margin</div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Bottom Row - Data Cards */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mt-3">
-          
-          {/* Top Ingredient Costs */}
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-3 min-h-[20vh] flex flex-col">
-            <h3 className="text-xs font-semibold text-gray-900 mb-2 flex-shrink-0">Top Ingredient Costs</h3>
-            <div className="space-y-1.5 flex-1 overflow-y-auto">
-              {dashboardData.ingredientTrends.map((ingredient, index) => (
-                <div key={index} className="flex items-center justify-between p-1.5 bg-gray-50 rounded-md flex-shrink-0">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 text-xs truncate">{ingredient.fullName}</p>
-                    <p className="text-[10px] text-gray-500">per {ingredient.unit}</p>
-                  </div>
-                  <div className="text-right ml-2 flex-shrink-0">
-                    <p className="font-semibold text-gray-900 text-xs">{formatCurrencyDetailed(ingredient.price)}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Recent Invoices */}
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-3 min-h-[20vh] flex flex-col">
-            <div className="flex items-center justify-between mb-2 flex-shrink-0">
-              <h3 className="text-xs font-semibold text-gray-900">Recent Invoices</h3>
-              <button 
-                onClick={() => router.push('/client/invoices')}
-                className="text-blue-600 hover:text-blue-700 text-[10px] font-medium flex-shrink-0"
-              >
-                View All
-              </button>
-            </div>
-            <div className="space-y-1.5 flex-1 overflow-y-auto">
-              {dashboardData.recentInvoices.slice(0, 6).map(invoice => (
-                <div key={invoice.id} className="flex items-center justify-between p-1.5 bg-gray-50 rounded-md flex-shrink-0">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 text-xs truncate">{invoice.number}</p>
-                    <p className="text-[10px] text-gray-500 truncate">{invoice.supplier}</p>
-                  </div>
-                  <div className="text-right ml-2 flex-shrink-0">
-                    <p className="font-semibold text-gray-900 text-xs">{formatCurrency(invoice.amount)}</p>
-                    <p className="text-[10px] text-gray-500">{formatDate(invoice.date)}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Key Metrics */}
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-3 min-h-[20vh] flex flex-col">
-            <h3 className="text-xs font-semibold text-gray-900 mb-2 flex-shrink-0">Key Metrics</h3>
-            <div className="grid grid-cols-2 gap-2 flex-1 min-h-0">
-              <div 
-                className="bg-blue-50 rounded-md p-2 cursor-pointer hover:bg-blue-100 transition-colors flex flex-col justify-center min-h-[60px]"
-                onClick={() => router.push('/client/invoices')}
-              >
-                <div className="flex items-center gap-1.5 mb-0.5">
-                  <div className="flex items-center justify-center w-4 h-4 bg-blue-100 rounded flex-shrink-0">
-                    <IconFileText size={10} className="text-blue-600" />
-                  </div>
-                  <div className="text-sm font-bold text-gray-900 truncate">{dashboardData.totalInvoices}</div>
-                </div>
-                <div className="text-[10px] text-gray-600">Invoices</div>
-              </div>
-              
-              <div 
-                className="bg-green-50 rounded-md p-2 cursor-pointer hover:bg-green-100 transition-colors flex flex-col justify-center min-h-[60px]"
-                onClick={() => router.push('/client/ingredients')}
-              >
-                <div className="flex items-center gap-1.5 mb-0.5">
-                  <div className="flex items-center justify-center w-4 h-4 bg-green-100 rounded flex-shrink-0">
-                    <IconClipboardList size={10} className="text-green-600" />
-                  </div>
-                  <div className="text-sm font-bold text-gray-900 truncate">{dashboardData.totalIngredients}</div>
-                </div>
-                <div className="text-[10px] text-gray-600">Ingredients</div>
-              </div>
-              
-              <div 
-                className="bg-purple-50 rounded-md p-2 cursor-pointer hover:bg-purple-100 transition-colors flex flex-col justify-center min-h-[60px]"
-                onClick={() => router.push('/client/menu-items')}
-              >
-                <div className="flex items-center gap-1.5 mb-0.5">
-                  <div className="flex items-center justify-center w-4 h-4 bg-purple-100 rounded flex-shrink-0">
-                    <IconChefHat size={10} className="text-purple-600" />
-                  </div>
-                  <div className="text-sm font-bold text-gray-900 truncate">{dashboardData.totalMenuItems}</div>
-                </div>
-                <div className="text-[10px] text-gray-600">Menu Items</div>
-              </div>
-              
-              <div className="bg-yellow-50 rounded-md p-2 flex flex-col justify-center min-h-[60px]">
-                <div className="flex items-center gap-1.5 mb-0.5">
-                  <div className="flex items-center justify-center w-4 h-4 bg-yellow-100 rounded flex-shrink-0">
-                    <IconCurrencyDollar size={10} className="text-yellow-600" />
-                  </div>
-                  <div 
-                    className="text-sm font-bold truncate"
-                    style={{ color: getMarginColor(dashboardData.averageMargin) }}
+          {/* Menu Analysis */}
+          <div className="col-span-7">
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-3 h-[200px] flex flex-col">
+              <div className="flex items-center justify-between mb-2 flex-shrink-0">
+                <h3 className="text-xs font-semibold text-gray-900">Menu Analysis</h3>
+                <div className="flex bg-gray-100 rounded-md p-0.5">
+                  <button
+                    onClick={() => setMarginView("Highest-Margin")}
+                    className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors ${
+                      marginView === "Highest-Margin" 
+                        ? 'bg-white text-gray-900 shadow-sm' 
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
                   >
-                    {dashboardData.averageMargin.toFixed(1)}%
-                  </div>
+                    High
+                  </button>
+                  <button
+                    onClick={() => setMarginView("Lowest-Margin")}
+                    className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors ${
+                      marginView === "Lowest-Margin" 
+                        ? 'bg-white text-gray-900 shadow-sm' 
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    Low
+                  </button>
                 </div>
-                <div className="text-[10px] text-gray-600">Avg Margin</div>
+              </div>
+              <div className="flex flex-col gap-1.5 flex-1 overflow-y-auto">
+                {getMarginItems().slice(0, 3).map((item, index) => (
+                  <div key={item.id} className="flex items-center justify-between p-2.5 bg-gray-50 rounded-md">
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-medium text-gray-900 text-xs truncate">{item.name}</h4>
+                      <p className="text-[10px] text-gray-500">{formatCurrencyDetailed(item.price)}</p>
+                    </div>
+                    <div className="text-right ml-2 flex-shrink-0">
+                      <div 
+                        className="font-semibold text-xs"
+                        style={{ color: getMarginColor(item.margin) }}
+                      >
+                        {item.margin.toFixed(1)}%
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
